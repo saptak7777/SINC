@@ -1,0 +1,13 @@
+// EXPECT: 42
+// Test: Non-vectorized function using virtual register 0 without EVEX IV corruption
+fn scalar_kernel(v0, b) [
+    res = v0 + b;
+    loop (i:10 = 0 .. 5) [
+        res = res + v0;
+    ]
+    ret res;
+]
+
+fn main() [
+    ret scalar_kernel(2, 30);
+]

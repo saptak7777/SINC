@@ -1,0 +1,51 @@
+// ==========================================
+// steel/data/slice.sinc
+// S.T.E.E.L. String Slice Engine
+// ==========================================
+
+const SLICE_PTR = 0; // The raw memory address of the first character
+const SLICE_LEN = 1; // The number of bytes
+
+fn slice_new!(arena, raw_ptr, len) [
+    // Allocate 2 words (16 bytes)
+    slice = arena_alloc_words!(arena, 2);
+    if (slice == 0) [
+        ret 0;
+    ]
+    // Store using constant lenses
+    slice.SLICE_PTR = raw_ptr;
+    slice.SLICE_LEN = len;
+    ret slice;
+]
+
+fn slice_eq(a, b) [
+    // 1. Fast Path: compare lengths
+    len_a = a.SLICE_LEN;
+    len_b = b.SLICE_LEN;
+    if (len_a != len_b) [
+        ret 0;
+    ]
+
+    // 2. Pointer Path: compare pointer addresses
+    ptr_a = a.SLICE_PTR;
+    ptr_b = b.SLICE_PTR;
+    if (ptr_a == ptr_b) [
+        ret 1;
+    ]
+
+    // 3. Slow Path: Byte comparison via bounded loop
+    loop (idx:10000000 = 0 .. len_a) [
+        ca = ptr_a@[idx * 1];
+        cb = ptr_b@[idx * 1];
+        if (ca != cb) [
+            ret 0;
+        ]
+    ]
+    ret 1;
+]
+
+fn slice_print!(slice) [
+    ptr = slice.SLICE_PTR;
+    len = slice.SLICE_LEN;
+    ret sys_write!(1, ptr, len);
+]

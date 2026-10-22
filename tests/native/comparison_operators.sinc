@@ -1,0 +1,15 @@
+// EXPECT: 31
+fn main() [
+    a = 5;
+    b = 5;
+    if (a == b) [
+        if (a != 4) [
+            if (a < 6) [
+                if (a > 3) [
+                    ret 31;
+                ]
+            ]
+        ]
+    ]
+    ret 1;
+]

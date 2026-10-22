@@ -1,0 +1,21 @@
+// EXPECT: 125
+// Test: Multiple tiered comparison branches in a loop
+fn main() [
+    sum_val = 0;
+    loop (i:50 = 0 .. 50) [
+        if (i < 10) [
+            sum_val = sum_val + 1;
+        ] else [
+            if (i < 25) [
+                sum_val = sum_val + 2;
+            ] else [
+                if (i < 40) [
+                    sum_val = sum_val + 3;
+                ] else [
+                    sum_val = sum_val + 4;
+                ]
+            ]
+        ]
+    ]
+    ret (sum_val & 255);
+]

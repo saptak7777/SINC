@@ -1,0 +1,168 @@
+// ==========================================
+// sinc/pure/loops.sinc
+// SINC Compiler: Single-Pass Loop Invariant Code Motion (LICM)
+// Architecture: Single Master Sweep & Batch Rebuild
+// ==========================================
+
+fn check_and_hoist_operand!(tape_ptr, header_idx, s_idx, def_count, r, hoist_target) [
+    if (def_count@[r] == 0) [
+        ret 1;
+    ]
+    loop (ci:1000 = header_idx .. s_idx) [
+        cw0 = tape_ptr@[(ci * 4)];
+        if (((cw0 & 255) == 1) & (((cw0 >> 16) & 65535) == r)) [
+            hoist_target@[ci] = header_idx;
+            def_count@[r] = 0;
+            ret 1;
+        ]
+    ]
+    ret 0;
+]
+
+fn ir_loops!(arena, func_desc, global_scratch_tape) [
+    curr_len = func_desc@[1];
+    tape_ptr = func_desc@[0];
+    max_reg = func_desc@[2];
+    call_table = func_desc@[6];
+
+    stride_len_b = (curr_len + 1) * 8;
+    loop_heads = global_scratch_tape;
+    hoist_target = loop_heads + stride_len_b;
+    loop_latches = hoist_target + stride_len_b;
+    first_hoisted_map = loop_latches + stride_len_b;
+    loop_body_start = first_hoisted_map + stride_len_b;
+    def_count = loop_body_start + stride_len_b;
+    vec_scratch = def_count + ((max_reg + 1) * 8);
+
+    loop_cnt = 0;
+    loop (ti:10000000 = 0 .. curr_len) [
+        tw0 = tape_ptr@[(ti * 4)];
+        if ((tw0 & 255) == 11) [
+            tgt = tape_ptr@[(ti * 4 + 2)] & 4294967295;
+            if (tgt < ti) [
+                loop_heads@[loop_cnt] = tgt | (ti << 32);
+                loop_cnt = loop_cnt + 1;
+            ]
+        ]
+    ]
+
+    if (loop_cnt == 0) [
+        ret 0;
+    ]
+
+    loop (i:10000000 = 0 .. (curr_len + 1)) [
+        loop_latches@[i] = 4294967295;
+        hoist_target@[i] = 4294967295;
+        first_hoisted_map@[i] = 4294967295;
+    ]
+
+    changed_any = 0;
+
+    // 1. Process discovered loops and identify loop invariants
+    loop (l_i:1000000 = 0 .. loop_cnt) [
+        header_idx = loop_heads@[l_i] & 4294967295;
+        latch_idx = loop_heads@[l_i] >> 32;
+        loop_latches@[header_idx] = latch_idx;
+
+        loop (r:10000000 = 0 .. (max_reg + 1)) [
+            def_count@[r] = 0;
+        ]
+        loop (bi:10000000 = header_idx .. (latch_idx + 1)) [
+            b_w0 = tape_ptr@[(bi * 4)];
+            b_op = b_w0 & 255;
+            if ((b_op != 0) & (b_op != 7) & (b_op != 8) & (b_op != 10) & (b_op != 11)) [
+                b_dst = (b_w0 >> 16) & 65535;
+                def_count@[b_dst] = def_count@[b_dst] + 1;
+            ]
+        ]
+
+        seen_branch = 0;
+        body_end = latch_idx - 4;
+
+        // Topological invariant hoist sweep
+        loop (s_idx:10000000 = header_idx .. body_end) [
+            if (hoist_target@[s_idx] == 4294967295) [
+                s_off = s_idx * 4;
+                sw0 = tape_ptr@[s_off];
+                s_op = sw0 & 255;
+
+                if ((s_op == 10) | (s_op == 11)) [
+                    seen_branch = 1;
+                ]
+
+                if (seen_branch == 0) [
+                    s_dst = (sw0 >> 16) & 65535;
+                    if (def_count@[s_dst] == 1) [
+                        sw1 = tape_ptr@[(s_off + 1)];
+                        sw2 = tape_ptr@[(s_off + 2)];
+                        s_src1 = sw1 & 4294967295;
+                        s_src2 = (sw1 >> 32) & 4294967295;
+                        hoistable = 0;
+
+                        if ((s_op == 1) & ((sw2 < -2147483648) | (sw2 > 2147483647))) [
+                            hoistable = 1;
+                        ]
+                        if ((sw0 & 65535) == 259) [ // Pure Call (1 << 8 | 3)
+                            w_idx = sw2 * 3;
+                            argc = call_table@[(w_idx + 1)] & 4294967295;
+                            args_ptr = call_table@[(w_idx + 2)];
+                            hoistable = 1;
+                            loop (ai:8 = 0 .. argc) [
+                                if (hoistable == 1) [
+                                    hoistable = check_and_hoist_operand!(tape_ptr, header_idx, s_idx, def_count, args_ptr@[ai], hoist_target);
+                                ]
+                            ]
+                        ]
+                        if ((s_op == 12) | (s_op == 4) | (s_op == 6) | (s_op == 9)) [
+                            hoistable = check_and_hoist_operand!(tape_ptr, header_idx, s_idx, def_count, s_src1, hoist_target);
+                            if ((hoistable == 1) & (s_op != 12) & (s_op != 9)) [
+                                hoistable = check_and_hoist_operand!(tape_ptr, header_idx, s_idx, def_count, s_src2, hoist_target);
+                            ]
+                        ]
+
+                        if (hoistable == 1) [
+                            hoist_target@[s_idx] = header_idx;
+                            changed_any = 1;
+                            def_count@[s_dst] = 0;
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        changed_any = changed_any | ir_vectorizer!(func_desc, tape_ptr, header_idx, latch_idx, hoist_target, max_reg, vec_scratch);
+    ]
+
+    if (changed_any == 0) [
+        ret 0;
+    ]
+
+    // 2. Single Master Tape Rebuild: Inject hoisted pre-headers and reconstruct tape
+    index_map = vec_scratch + ((max_reg + 1) * 16);
+    out_tape = index_map + stride_len_b;
+    out_idx = 0;
+
+    loop (r_idx:10000000 = 0 .. curr_len) [
+        latch = loop_latches@[r_idx];
+        if (latch != 4294967295) [
+            first_hoisted_map@[r_idx] = out_idx;
+
+            // Inject all instructions hoisted for this loop header
+            loop (j:10000000 = r_idx .. (latch + 1)) [
+                if (hoist_target@[j] == r_idx) [
+                    index_map@[j] = out_idx;
+                    out_idx = tape_copy_4!(out_tape, out_idx, tape_ptr, j);
+                ]
+            ]
+            loop_body_start@[r_idx] = out_idx;
+        ]
+
+        // Emit un-hoisted instruction
+        if (hoist_target@[r_idx] == 4294967295) [
+            index_map@[r_idx] = out_idx;
+            out_idx = tape_copy_4!(out_tape, out_idx, tape_ptr, r_idx);
+        ]
+    ]
+
+    ret tape_commit!(arena, func_desc, out_tape, out_idx, curr_len, changed_any, index_map, first_hoisted_map, loop_body_start);
+]

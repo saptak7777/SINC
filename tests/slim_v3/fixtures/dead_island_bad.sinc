@@ -1,0 +1,18 @@
+// fixture: dead_island_bad.sinc — dead island of functions calling each other
+fn island_b(x) [
+    ret x * 2;
+]
+
+fn island_a(y) [
+    res = island_b(y);
+    ret res;
+]
+
+fn live_helper(a) [
+    ret a + 1;
+]
+
+fn main() [
+    v = live_helper(10);
+    ret v;
+]

@@ -1,0 +1,183 @@
+// ==========================================
+// hound/sys/hud_render.sinc
+// HOUND: The SINC Hardware Logic Probe
+// Universal ANSI Flat Framebuffer Painter (Zero OS Dependencies)
+// Single Syscall Flush (sys_write! to FD 1)
+// ==========================================
+
+fn hud_poke_char!(buf, off_ptr, ch) [
+    idx = off_ptr@[0];
+    buf@[idx * 1] = ch;
+    off_ptr@[0] = idx + 1;
+    ret 0;
+]
+
+fn hud_poke_hex2!(buf, off_ptr, val) [
+    hi = hex_nibble_to_ascii!(val >> 4);
+    lo = hex_nibble_to_ascii!(val);
+    hud_poke_char!(buf, off_ptr, hi);
+    hud_poke_char!(buf, off_ptr, lo);
+    ret 0;
+]
+
+fn hud_poke_hex16!(buf, off_ptr, quad) [
+    hud_poke_char!(buf, off_ptr, 48);  // '0'
+    hud_poke_char!(buf, off_ptr, 120); // 'x'
+    loop (i:8 = 0 .. 8) [
+        byte_val = word_extract_u8!(quad, 7 - i);
+        hud_poke_hex2!(buf, off_ptr, byte_val);
+    ]
+    ret 0;
+]
+
+fn hud_poke_str!(buf, off_ptr, str_buf, len) [
+    loop (i:1000 = 0 .. len) [
+        ch = str_buf@[i * 1];
+        hud_poke_char!(buf, off_ptr, ch);
+    ]
+    ret 0;
+]
+
+fn hud_poke_newline!(buf, off_ptr) [
+    hud_poke_char!(buf, off_ptr, 10); // '\n'
+    ret 0;
+]
+
+// --- Top HUD Header ---
+fn hud_render_header!(buf, off_ptr) [
+    // ANSI: \033[H (Cursor Home)
+    hud_poke_char!(buf, off_ptr, 27); hud_poke_char!(buf, off_ptr, 91); hud_poke_char!(buf, off_ptr, 72);
+    
+    // Banner: "=== [ HOUND LOGIC PROBE ] ==="
+    hud_poke_char!(buf, off_ptr, 61); hud_poke_char!(buf, off_ptr, 61); hud_poke_char!(buf, off_ptr, 61);
+    hud_poke_char!(buf, off_ptr, 32); hud_poke_char!(buf, off_ptr, 91); hud_poke_char!(buf, off_ptr, 32);
+    hud_poke_char!(buf, off_ptr, 72); hud_poke_char!(buf, off_ptr, 79); hud_poke_char!(buf, off_ptr, 85);
+    hud_poke_char!(buf, off_ptr, 78); hud_poke_char!(buf, off_ptr, 68); hud_poke_char!(buf, off_ptr, 32);
+    hud_poke_char!(buf, off_ptr, 76); hud_poke_char!(buf, off_ptr, 79); hud_poke_char!(buf, off_ptr, 71);
+    hud_poke_char!(buf, off_ptr, 73); hud_poke_char!(buf, off_ptr, 67); hud_poke_char!(buf, off_ptr, 32);
+    hud_poke_char!(buf, off_ptr, 80); hud_poke_char!(buf, off_ptr, 82); hud_poke_char!(buf, off_ptr, 79);
+    hud_poke_char!(buf, off_ptr, 66); hud_poke_char!(buf, off_ptr, 69); hud_poke_char!(buf, off_ptr, 32);
+    hud_poke_char!(buf, off_ptr, 93); hud_poke_char!(buf, off_ptr, 32);
+    hud_poke_char!(buf, off_ptr, 61); hud_poke_char!(buf, off_ptr, 61); hud_poke_char!(buf, off_ptr, 61);
+    hud_poke_newline!(buf, off_ptr);
+    ret 0;
+]
+
+// --- Panel A: The Arena Oscilloscope ---
+fn hud_render_panel_a!(buf, off_ptr, bump_bytes, heap_cap, is_fracture, is_breach) [
+    hud_poke_char!(buf, off_ptr, 91); hud_poke_char!(buf, off_ptr, 65); hud_poke_char!(buf, off_ptr, 93);
+    hud_poke_char!(buf, off_ptr, 32);
+    
+    if (is_fracture != 0) [
+        hud_poke_char!(buf, off_ptr, 33); hud_poke_char!(buf, off_ptr, 32);
+        hud_poke_char!(buf, off_ptr, 90); hud_poke_char!(buf, off_ptr, 69); hud_poke_char!(buf, off_ptr, 82);
+        hud_poke_char!(buf, off_ptr, 79); hud_poke_char!(buf, off_ptr, 45); hud_poke_char!(buf, off_ptr, 66);
+        hud_poke_char!(buf, off_ptr, 65); hud_poke_char!(buf, off_ptr, 83); hud_poke_char!(buf, off_ptr, 69);
+    ] else [
+        if (is_breach != 0) [
+            hud_poke_char!(buf, off_ptr, 33); hud_poke_char!(buf, off_ptr, 32);
+            hud_poke_char!(buf, off_ptr, 65); hud_poke_char!(buf, off_ptr, 82); hud_poke_char!(buf, off_ptr, 69);
+            hud_poke_char!(buf, off_ptr, 78); hud_poke_char!(buf, off_ptr, 65); hud_poke_char!(buf, off_ptr, 32);
+            hud_poke_char!(buf, off_ptr, 66); hud_poke_char!(buf, off_ptr, 82); hud_poke_char!(buf, off_ptr, 69);
+        ] else [
+            hud_poke_char!(buf, off_ptr, 91); // '['
+            used_bars = 10;
+            if (heap_cap > 0) [ used_bars = (bump_bytes * 20) / heap_cap; ]
+            if (used_bars > 20) [ used_bars = 20; ]
+            
+            loop (b_idx:20 = 0 .. 20) [
+                if (b_idx < used_bars) [
+                    hud_poke_char!(buf, off_ptr, 35); // '#'
+                ] else [
+                    hud_poke_char!(buf, off_ptr, 46); // '.'
+                ]
+            ]
+            hud_poke_char!(buf, off_ptr, 93); // ']'
+        ]
+    ]
+    hud_poke_newline!(buf, off_ptr);
+    ret 0;
+]
+
+// --- Panel B: Word Slicer ---
+fn hud_render_panel_b!(buf, off_ptr, reg_val) [
+    hud_poke_char!(buf, off_ptr, 91); hud_poke_char!(buf, off_ptr, 66); hud_poke_char!(buf, off_ptr, 93);
+    hud_poke_char!(buf, off_ptr, 32);
+    hud_poke_hex16!(buf, off_ptr, reg_val);
+    hud_poke_char!(buf, off_ptr, 32);
+    hud_poke_char!(buf, off_ptr, 124); hud_poke_char!(buf, off_ptr, 32); // "| "
+
+    loop (i:8 = 0 .. 8) [
+        b = word_extract_u8!(reg_val, i);
+        if (char_is_printable!(b) != 0) [
+            hud_poke_char!(buf, off_ptr, b);
+        ] else [
+            hud_poke_char!(buf, off_ptr, 46); // '.'
+        ]
+    ]
+    hud_poke_newline!(buf, off_ptr);
+    ret 0;
+]
+
+// --- Panel C: OS Gateway ---
+fn hud_render_panel_c!(buf, off_ptr, syscall_id, ret_val) [
+    hud_poke_char!(buf, off_ptr, 91); hud_poke_char!(buf, off_ptr, 67); hud_poke_char!(buf, off_ptr, 93);
+    hud_poke_char!(buf, off_ptr, 32);
+    
+    hud_poke_char!(buf, off_ptr, 83); hud_poke_char!(buf, off_ptr, 89); hud_poke_char!(buf, off_ptr, 83);
+    hud_poke_char!(buf, off_ptr, 58); hud_poke_char!(buf, off_ptr, 32); // "SYS: "
+    hud_poke_hex2!(buf, off_ptr, syscall_id);
+    hud_poke_char!(buf, off_ptr, 32);
+
+    hud_poke_char!(buf, off_ptr, 82); hud_poke_char!(buf, off_ptr, 69); hud_poke_char!(buf, off_ptr, 84);
+    hud_poke_char!(buf, off_ptr, 58); hud_poke_char!(buf, off_ptr, 32); // "RET: "
+    hud_poke_hex16!(buf, off_ptr, ret_val);
+    hud_poke_newline!(buf, off_ptr);
+    ret 0;
+]
+
+// --- Panel D: Tape Sequencer ---
+fn hud_render_panel_d!(buf, off_ptr, rip_addr, clock_cnt) [
+    hud_poke_char!(buf, off_ptr, 91); hud_poke_char!(buf, off_ptr, 68); hud_poke_char!(buf, off_ptr, 93);
+    hud_poke_char!(buf, off_ptr, 32);
+    hud_poke_char!(buf, off_ptr, 82); hud_poke_char!(buf, off_ptr, 73); hud_poke_char!(buf, off_ptr, 80);
+    hud_poke_char!(buf, off_ptr, 58); hud_poke_char!(buf, off_ptr, 32); // "RIP: "
+    hud_poke_hex16!(buf, off_ptr, rip_addr);
+    hud_poke_char!(buf, off_ptr, 32);
+    hud_poke_char!(buf, off_ptr, 67); hud_poke_char!(buf, off_ptr, 76); hud_poke_char!(buf, off_ptr, 75);
+    hud_poke_char!(buf, off_ptr, 58); hud_poke_char!(buf, off_ptr, 32); // "CLK: "
+    hud_poke_hex2!(buf, off_ptr, clock_cnt);
+    hud_poke_newline!(buf, off_ptr);
+    ret 0;
+]
+
+// --- Top-Level Universal Render All ---
+fn hud_render_all!(arena, hud_buf, regs_buf, state_ctx) [
+    off_cell = arena_alloc_words!(arena, 1);
+    off_cell@[0] = 0;
+
+    hud_render_header!(hud_buf, off_cell);
+    
+    // Panel A: Memory Oscilloscope
+    bump_val = state_ctx@[0];
+    cap_val  = state_ctx@[1];
+    is_fracture = state_ctx@[2];
+    is_breach   = state_ctx@[3];
+    hud_render_panel_a!(hud_buf, off_cell, bump_val, cap_val, is_fracture, is_breach);
+
+    // Panel B: Word Slicer
+    tapped_reg = regs_buf@[REG_RAX];
+    hud_render_panel_b!(hud_buf, off_cell, tapped_reg);
+
+    // Panel C: OS Gateway
+    sys_id  = regs_buf@[REG_ORIG_RAX];
+    sys_ret = regs_buf@[REG_RAX];
+    hud_render_panel_c!(hud_buf, off_cell, sys_id, sys_ret);
+
+    // Panel D: Tape Sequencer
+    rip_val = regs_buf@[REG_RIP];
+    clock   = state_ctx@[4];
+    hud_render_panel_d!(hud_buf, off_cell, rip_val, clock);
+
+    ret off_cell@[0]; // Returns total flushed bytes
+]

@@ -1,0 +1,10 @@
+// EXPECT: 17
+fn main() [
+    a = 9;
+    b = 4;
+    if (a > b) [
+        ret 17;
+    ] else [
+        ret 3;
+    ]
+]

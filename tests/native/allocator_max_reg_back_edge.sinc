@@ -1,0 +1,36 @@
+// EXPECT: 42
+// Test: Virtual register max_reg live across multi-iteration loop under register pressure
+fn test_back_edge_max_reg(base) [
+    v1 = base + 1;
+    v2 = base + 2;
+    v3 = base + 3;
+    v4 = base + 4;
+    v5 = base + 5;
+    v6 = base + 6;
+    v7 = base + 7;
+    v8 = base + 8;
+    v9 = base + 9;
+    v10 = base + 42;
+
+    sum = 0;
+    loop (i:100 = 0 .. 20) [
+        t1 = i + 1;
+        t2 = t1 + 2;
+        t3 = t2 + 3;
+        t4 = t3 + 4;
+        t5 = t4 + 5;
+        t6 = t5 + 6;
+        t7 = t6 + 7;
+        t8 = t7 + 8;
+        sum = sum + (t8 - t7);
+    ]
+
+    if (v10 == base + 42) [
+        ret 42;
+    ]
+    ret 0;
+]
+
+fn main() [
+    ret test_back_edge_max_reg(0);
+]

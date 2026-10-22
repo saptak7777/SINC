@@ -1,0 +1,11 @@
+// EXPECT: 176
+// Test: Unrolled inner loop inside vectorized outer loop with linear arithmetic
+fn main() [
+    sum = 0;
+    loop (outer:8 = 0 .. 8) [
+        loop (k:4 = 0 .. 4) [
+            sum = sum + k * 3 + 1;
+        ]
+    ]
+    ret sum & 255;
+]

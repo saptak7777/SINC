@@ -1,0 +1,36 @@
+# Editor & tooling directories
+.vscode/
+.kilo/
+
+# Build artifacts & compiled binaries
+*.o
+*.s
+*.safe
+*.elf
+a.out
+core
+
+# Release bootstrap toolchain binaries
+!bin/
+!bin/sinc.elf
+!bin/staff
+!bin/packager_bin
+!bin/packager_o
+!bin/slim.elf
+
+# Test & benchmark temporary files
+temp_*
+ours_*
+_tmp_*
+test_out.txt
+bench/results.txt
+debug_input.sinc
+temp_test.sinc
+test.sinc
+
+# Internal/research & scratch notes
+docs/*
+scratch/
+
+# Verification Suite Artifacts (Committed Golden Baseline)
+!verify/**

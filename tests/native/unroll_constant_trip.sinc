@@ -1,0 +1,14 @@
+// EXPECT: 30
+// Test: Phase 6 — Constant trip-count loop unrolling
+fn run_unroll_trip(scale) [
+    sum = 0;
+    loop (i:5 = 0 .. 5) [
+        term = i * scale;
+        sum = sum + term;
+    ]
+    ret sum & 255;
+]
+
+fn main() [
+    ret run_unroll_trip(3);
+]

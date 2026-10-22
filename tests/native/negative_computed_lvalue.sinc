@@ -1,0 +1,7 @@
+// COMPILE_ERROR: 7
+// Test: Computed expression cannot be an LValue assignment target
+fn main() [
+    a = 1;
+    a + 2 = 5;
+    ret a;
+]

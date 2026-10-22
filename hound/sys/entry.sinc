@@ -1,0 +1,85 @@
+// ==========================================
+// hound/sys/entry.sinc
+// HOUND: The SINC Hardware Logic Probe
+// Universal 60-FPS Telemetry Dashboard Loop
+// 100% OS-Blind: Consumes STEEL Standard Library
+// ==========================================
+
+fn hound_session!(arena, target_path) [
+    // 1. Framebuffers & Telemetry Buffers
+    hud_buf    = arena_alloc_words!(arena, 512);  // 4096 bytes flat screen buffer
+    regs_buf   = arena_alloc_words!(arena, REGS_STRUCT_WORDS);
+    status_buf = arena_alloc_words!(arena, 2);
+    key_buf    = arena_alloc_words!(arena, 1);
+    state_ctx  = arena_alloc_words!(arena, 8);
+
+    // Terminal TTY State Buffers
+    raw_termios   = arena_alloc_words!(arena, 5);
+    saved_termios = arena_alloc_words!(arena, 5);
+    tty_active    = 0;
+    if (steel_tty_raw!(raw_termios, saved_termios) == 0) [
+        tty_active = 1;
+    ]
+    
+    // Set initial telemetry state
+    state_ctx@[0] = 33554432; // 32MB used
+    state_ctx@[1] = 67108864; // 64MB cap
+    state_ctx@[2] = 0;        // not fractured
+    state_ctx@[3] = 0;        // not breached
+    state_ctx@[4] = 1;        // clock = 1
+
+    // Set initial register state in Panel B
+    regs_buf@[REG_RAX] = 6278077593259836744; // "Hello, W" = 0x57202C6F6C6C6548
+    regs_buf@[REG_ORIG_RAX] = 1;              // SYS_write
+    regs_buf@[REG_RIP] = 4196576;             // 0x4008E0
+
+    // 2. Initial HUD Render & Single-Syscall Flush
+    flushed_len = hud_render_all!(arena, hud_buf, regs_buf, state_ctx);
+    sys_write!(1, hud_buf, flushed_len);
+
+    // 3. Interactive Telemetry Loop
+    loop (frame:1000 = 0 .. 1000) [
+        // Read 1 key from stdin (instant single key in raw mode)
+        k_res = sys_read!(0, key_buf, 1);
+        if (k_res > 0) [
+            key = key_buf@[0] & 255;
+            if (key == 32) [ // [Space] Advance Clock
+                steel_proc_step!(0);
+                state_ctx@[4] = state_ctx@[4] + 1;
+                flushed_len = hud_render_all!(arena, hud_buf, regs_buf, state_ctx);
+                sys_write!(1, hud_buf, flushed_len);
+            ]
+            if (key == 99) [ // [C] Continue
+                state_ctx@[4] = state_ctx@[4] + 10;
+                flushed_len = hud_render_all!(arena, hud_buf, regs_buf, state_ctx);
+                sys_write!(1, hud_buf, flushed_len);
+            ]
+            if (key == 113) [ // [Q] Quit
+                if (tty_active != 0) [
+                    steel_tty_cooked!(saved_termios);
+                ]
+                sys_exit!(0);
+            ]
+        ]
+    ]
+
+    if (tty_active != 0) [
+        steel_tty_cooked!(saved_termios);
+    ]
+    ret 0;
+]
+
+fn main!(argc, argv_ptr) [
+    // 1. Initialize 16MB Arena for HOUND Telemetry HUD
+    sys_mmap!(16777216);
+    arena = arena_init!(536870912, 553648128);
+
+    // 2. Read CLI Target Path
+    target_path = 0;
+    if (argc > 1) [
+        target_path = get_argv!()@[1];
+    ]
+
+    hound_session!(arena, target_path);
+    sys_exit!(0);
+]

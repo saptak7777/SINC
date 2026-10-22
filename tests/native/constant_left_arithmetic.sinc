@@ -1,0 +1,12 @@
+// EXPECT: 18
+fn run_left_arith(init) [
+    sum = init;
+    loop (i:4 = 0 .. 4) [
+        sum = sum + 3 + i;
+    ]
+    ret sum;
+]
+
+fn main() [
+    ret run_left_arith(0);
+]

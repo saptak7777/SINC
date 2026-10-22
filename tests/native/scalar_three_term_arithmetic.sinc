@@ -1,0 +1,13 @@
+// EXPECT: 99
+// Test: Three-term arithmetic computation and register allocation
+fn test_register_isolation(a, b, c) [
+    t1 = a * b;
+    t2 = b + c;
+    t3 = t1 + t2;
+    ret t3;
+]
+
+fn main() [
+    res = test_register_isolation(10, 8, 11);
+    ret res;
+]

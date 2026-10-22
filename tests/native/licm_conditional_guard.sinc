@@ -1,0 +1,22 @@
+// EXPECT: 230
+// Test: Phase 5 LICM — Spine invariant hoisted while conditional branch invariant remains un-hoisted
+fn main() [
+    a = 10;
+    b = 20;
+    sum = 0;
+    loop (i:5 = 0 .. 5) [
+        // Spine invariant (always executed if loop runs): MUST hoist!
+        spine_inv = a * 2 + b;
+        
+        if (i == 2) [
+            // Inside branch: MUST NOT hoist to loop header!
+            branch_val = a * 3;
+            sum = sum + branch_val;
+        ]
+        sum = sum + spine_inv;
+    ]
+    // spine_inv = 10*2 + 20 = 40. Over 5 iterations: 5 * 40 = 200.
+    // branch_val = 10*3 = 30 (only on i == 2).
+    // Total = 230. 230 & 255 = 230.
+    ret sum & 255;
+]

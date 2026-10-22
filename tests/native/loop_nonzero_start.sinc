@@ -1,0 +1,12 @@
+// EXPECT: 33
+fn run_nonzero(start, end) [
+    sum = 0;
+    loop (i = start .. end) [
+        sum = sum + i;
+    ]
+    ret sum;
+]
+
+fn main() [
+    ret run_nonzero(3, 9);
+]

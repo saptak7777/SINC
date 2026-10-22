@@ -1,0 +1,13 @@
+fn bench_run_sinc() [
+    int_sum = 0;
+    int_x = 1;
+    loop (idx:100000000 = 0 .. 100000000) [
+        if ((int_x & 1) == 0) [
+            int_sum = int_sum + 3;
+        ] else [
+            int_sum = int_sum + 7;
+        ]
+        int_x = int_x + idx + 1;
+    ]
+    ret int_sum;
+]

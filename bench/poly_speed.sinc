@@ -1,0 +1,13 @@
+fn poly(x) [
+    ret x * x + 2 * x + 3;
+]
+
+fn bench_run() [
+    sum = 0;
+    x = 1;
+    loop (idx:100000000 = 0 .. 100000000) [
+        sum = sum + poly(x);
+        x = x + 1;
+    ]
+    ret sum;
+]

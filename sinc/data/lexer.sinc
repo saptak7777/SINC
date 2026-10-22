@@ -1,0 +1,261 @@
+// ==========================================
+// sinc/data/lexer.sinc
+// SINC Compiler: High-Throughput Universal Lexer
+// ==========================================
+
+const T_EOF      = 0;
+const T_FN       = 1;
+const T_IMPORT   = 2;
+const T_RET      = 3;
+const T_CONST    = 4;
+const T_IF       = 5;
+const T_LOOP     = 6;
+const T_ELSE     = 7;
+const T_EXTERN   = 8;
+const T_IDENT    = 9;
+const T_NUMBER   = 10;
+const T_LPAREN   = 11;
+const T_RPAREN   = 12;
+const T_LBRACKET = 13;
+const T_RBRACKET = 14;
+const T_COMMA    = 15;
+const T_DOT      = 16;
+const T_EQUAL    = 17;
+const T_SEMI     = 22;
+const T_AT       = 28;
+const T_DOTDOT   = 37;
+
+// --- 1. Constant Lenses for Lexer State (6 words) ---
+const LEX_SRC_PTR = 0; // Raw pointer to loaded source code ASCII bytes
+const LEX_SRC_LEN = 1; // Total length of the source file in bytes
+const LEX_CURSOR  = 2; // Current byte index being read
+const LEX_LINE    = 3; // Current line number (starts at 1)
+const LEX_TMP_PTR = 4; // Embedded String Slice ptr (used as ghost slice)
+const LEX_TMP_LEN = 5; // Embedded String Slice len (used as ghost slice)
+
+// --- 2. Constant Lenses for Token Output (4 words) ---
+const TOK_TYPE  = 0; // The integer Token Kind representing the token type
+const TOK_VAL   = 1; // Holds symbol ID (IDENTs) or parsed integer value (NUMBERs)
+const TOK_LINE  = 2; // The line number where the token was matched
+const TOK_FLAGS = 3; // Packed token metadata flags
+
+// --- Token Metadata Flags (Stored in TOK_FLAGS) ---
+const FLAG_LINEAR = 1;
+const FLAG_PURE   = 2;
+
+// --- 3. Keyword Intern Helper ---
+fn intern_kw!(data_ptr, sl, sym_table, sym_capacity, sym_count, raw_int, kw_len) [
+    data_ptr@[0] = raw_int;
+    sl.SLICE_PTR = data_ptr;
+    sl.SLICE_LEN = kw_len;
+    h = hash_fnv1a(sl);
+    sym_intern!(sym_table, sym_capacity, sl, h, sym_count);
+    ret 0;
+]
+
+// --- 4. Pre-Intern Keyword Dictionary ---
+fn lexer_init_keywords!(arena, sym_table, sym_capacity, sym_count) [
+    data_block = arena_alloc_words!(arena, 8);
+    sl = arena_alloc_words!(arena, 2);
+    // Keywords intern in order: sym_ids 1-8 are their token IDs directly.
+    intern_kw!(data_block, sl, sym_table, sym_capacity, sym_count, 102 | (110 << 8), 2);
+    intern_kw!(data_block + 8, sl, sym_table, sym_capacity, sym_count, 105 | (109 << 8) | (112 << 16) | (111 << 24) | (114 << 32) | (116 << 40), 6);
+    intern_kw!(data_block + 16, sl, sym_table, sym_capacity, sym_count, 114 | (101 << 8) | (116 << 16), 3);
+    intern_kw!(data_block + 24, sl, sym_table, sym_capacity, sym_count, 99 | (111 << 8) | (110 << 16) | (115 << 24) | (116 << 32), 5);
+    intern_kw!(data_block + 32, sl, sym_table, sym_capacity, sym_count, 105 | (102 << 8), 2);
+    intern_kw!(data_block + 40, sl, sym_table, sym_capacity, sym_count, 108 | (111 << 8) | (111 << 16) | (112 << 24), 4);
+    intern_kw!(data_block + 48, sl, sym_table, sym_capacity, sym_count, 101 | (108 << 8) | (115 << 16) | (101 << 24), 4);
+    intern_kw!(data_block + 56, sl, sym_table, sym_capacity, sym_count, 101 | (120 << 8) | (116 << 16) | (101 << 24) | (114 << 32) | (110 << 40), 6);
+    ret 0;
+]
+
+// --- 5. UCTT + Operator LUT Initialization ---
+fn lexer_init!(arena, sym_table, sym_capacity, sym_count, lut) [
+    ctype_init!(lut);
+
+    lut@[40]  = 11;                                    // '(' T_LPAREN
+    lut@[41]  = 12;                                    // ')' T_RPAREN
+    lut@[91]  = 13;                                    // '[' T_LBRACKET
+    lut@[93]  = 14;                                    // ']' T_RBRACKET
+    lut@[44]  = 15;                                    // ',' T_COMMA
+    lut@[46]  = 16 | (46 << 16) | (37 << 24);          // '.' T_DOT, '..' T_DOTDOT
+    lut@[61]  = 17 | (61 << 16) | (30 << 24);          // '=' T_EQUAL, '==' T_EQEQ
+    lut@[43]  = 18;                                    // '+' T_PLUS
+    lut@[45]  = 19;                                    // '-' T_MINUS
+    lut@[42]  = 20;                                    // '*' T_STAR
+    lut@[47]  = 21;                                    // '/' T_SLASH
+    lut@[59]  = 22;                                    // ';' T_SEMI
+    lut@[38]  = 23;                                    // '&' T_AND
+    lut@[124] = 24;                                    // '|' T_PIPE
+    lut@[94]  = 25;                                    // '^' T_CARET
+    lut@[33]  = 26 | 2048 | (61 << 16) | (31 << 24);   // '!' T_EXCL, ident-cont, '!=' T_NEQ
+    lut@[126] = 27 | 2048;                             // '~' T_TILDE, ident-cont
+    lut@[64]  = 28;                                    // '@' T_AT
+    lut@[58]  = 29 | 2048;                             // ':' T_COLON, ident-cont
+    lut@[60]  = 32 | (60 << 16) | (34 << 24);          // '<' T_LT, '<<' T_SHL
+    lut@[62]  = 33 | (62 << 16) | (35 << 24);          // '>' T_GT, '>>' T_SHR
+
+    lexer_init_keywords!(arena, sym_table, sym_capacity, sym_count);
+    ret 0;
+]
+
+// --- 6. Single-Source Iterative Lexer Engine ---
+fn lexer_next_token!(state, sym_table, sym_capacity, sym_count, out_token, lut) [
+    src_ptr   = state.LEX_SRC_PTR;
+    src_len   = state.LEX_SRC_LEN;
+    cursor    = state.LEX_CURSOR;
+    tok_type  = 0;
+    tok_val   = 0;
+    tok_flags = 0;
+
+    // 1. Skip Whitespace & Comments ('//' and '/* ... */')
+    loop (step:10000000 = 0 .. (src_len + 1)) [
+        if (!(cursor < src_len)) [
+            step = src_len + 1;
+        ] else [
+            ch = src_ptr@[cursor * 1];
+            traits = lut@[ch];
+            nch = 0;
+            if ((ch == 47) & ((cursor + 1) < src_len)) [
+                nch = src_ptr@[(cursor + 1) * 1];
+            ]
+            if (((traits & 256) == 0) & (nch != 47) & (nch != 42)) [
+                step = src_len + 1;
+            ] else [
+                if ((traits & 256) != 0) [
+                    cursor = cursor + 1;
+                    state.LEX_LINE = state.LEX_LINE + ((traits >> 12) & 1);
+                ] else [
+                    cursor = cursor + 2;
+                    loop (ck:10000000 = cursor .. src_len) [
+                        c_ch = src_ptr@[cursor * 1];
+                        if (c_ch == 0) [
+                            ck = src_len;
+                        ] else [
+                            cursor = cursor + 1;
+                            state.LEX_LINE = state.LEX_LINE + (c_ch == 10);
+                            if ((nch == 47) & (c_ch == 10)) [
+                                ck = src_len;
+                            ]
+                            if ((nch == 42) & (c_ch == 42) & (cursor < src_len)) [
+                                if (src_ptr@[cursor * 1] == 47) [
+                                    cursor = cursor + 1;
+                                    ck = src_len;
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+    if (cursor < src_len) [
+        ch = src_ptr@[cursor * 1];
+        traits = lut@[ch];
+
+        // 2. Digit Literal (UCTT bit 512)
+        if ((traits & 512) != 0) [
+            tok_type = 10;
+            loop (k:10000000 = cursor .. src_len) [
+                d_ch = src_ptr@[cursor * 1];
+                if ((d_ch < 48) | (d_ch > 57)) [
+                    k = src_len;
+                ] else [
+                    tok_val = (tok_val * 10) + (d_ch - 48);
+                    cursor = cursor + 1;
+                ]
+            ]
+        ]
+
+        // 3. Identifier or Keyword (UCTT bit 1024)
+        if ((traits & 1024) != 0) [
+            start_cursor = cursor;
+            cursor = cursor + 1;
+            loop (k:10000000 = cursor .. src_len) [
+                i_ch = src_ptr@[cursor * 1];
+                if ((lut@[i_ch] & 2048) == 0) [
+                    k = src_len;
+                ] else [
+                    cursor = cursor + 1;
+                ]
+            ]
+            ptr = src_ptr + start_cursor;
+            len = cursor - start_cursor;
+            tok_flags = FLAG_PURE | FLAG_LINEAR;
+
+            if (ptr@[(len - 1) * 1] == 126) [
+                tok_flags = tok_flags & -2;
+                len = len - 1;
+            ]
+            if (ptr@[(len - 1) * 1] == 33) [
+                tok_flags = tok_flags & -3;
+                len = len - 1;
+            ]
+
+            b_accum = 0;
+            loop (i:10000000 = 0 .. len) [
+                idx = (len - 1) - i;
+                if (ptr@[idx * 1] == 58) [
+                    loop (j:10000000 = (idx + 1) .. len) [
+                        b_ch = ptr@[j * 1];
+                        if ((b_ch < 48) | (b_ch > 57)) [
+                            tok_type = 36;
+                            tok_val = b_ch;
+                            j = len;
+                        ]
+                        b_accum = (b_accum * 10) + (b_ch - 48);
+                    ]
+                    tok_flags = tok_flags | (b_accum << 32);
+                    len = idx;
+                    i = len;
+                ]
+            ]
+
+            state.LEX_TMP_PTR = ptr;
+            state.LEX_TMP_LEN = len;
+            tmp_slice = state + 32;
+            hash = hash_fnv1a(tmp_slice);
+            sym_id = sym_intern!(sym_table, sym_capacity, tmp_slice, hash, sym_count);
+
+            if (tok_type == 0) [
+                tok_type = sym_id;
+                if (sym_id > 8) [
+                    tok_type = 9;
+                    tok_val = sym_id;
+                ]
+            ]
+        ]
+
+        // 4. Operators (1-char & 2-char) and Invalid Characters (including NUL)
+        if ((traits & 1536) == 0) [
+            tok_type = traits & 255;
+            cursor = cursor + 1;
+            if (tok_type == 0) [
+                tok_type = 36;
+                tok_val = ch;
+            ] else [
+                expected = (traits >> 16) & 255;
+                if ((expected != 0) & (cursor < src_len)) [
+                    if (src_ptr@[cursor * 1] == expected) [
+                        tok_type = (traits >> 24) & 255;
+                        cursor = cursor + 1;
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+    // 5. Single Source of Truth Token Epilogue
+    state.LEX_CURSOR    = cursor;
+    out_token.TOK_TYPE  = tok_type;
+    out_token.TOK_VAL   = tok_val;
+    out_token.TOK_LINE  = state.LEX_LINE;
+    out_token.TOK_FLAGS = tok_flags;
+    ret 0;
+]
+
+fn lexer_advance!(ctx) [
+    lexer_next_token!(ctx@[2], ctx@[4], ctx@[5], ctx@[6], ctx@[3], ctx@[7]);
+    ret ctx@[3];
+]

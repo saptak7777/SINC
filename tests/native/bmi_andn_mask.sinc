@@ -1,0 +1,12 @@
+// EXPECT: 40
+// REQUIRE_INSN: andn
+// Test: Subphase 1.2 — Inverted AND (ANDN) bit manipulation
+fn test_andn(a, b) [
+    inv_a = -1 ^ a;
+    ret inv_a & b;
+]
+
+fn main() [
+    res = test_andn(15, 60);
+    ret res - 8;
+]

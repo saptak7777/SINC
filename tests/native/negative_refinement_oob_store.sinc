@@ -1,0 +1,7 @@
+// COMPILE_ERROR: 15
+// Test: Compile-time rejection of out-of-bounds array store on bounded buffer
+fn main!() [
+    buf:64 = 0;
+    buf@[100] = 42;
+    ret 0;
+]

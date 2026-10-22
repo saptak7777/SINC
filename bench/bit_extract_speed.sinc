@@ -1,0 +1,12 @@
+fn bench_bit_extract() [
+    acc = 12345;
+    mask = 63;
+    loop (idx:100000000 = 0 .. 100000000) [
+        shift_amt = (idx & 7) + 1;
+        t1 = acc << shift_amt;
+        t2 = t1 >> shift_amt;
+        sliced = (t2 >> 2) & mask;
+        acc = acc + sliced + 1;
+    ]
+    ret acc;
+]

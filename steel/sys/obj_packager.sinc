@@ -1,0 +1,266 @@
+// ==========================================
+// steel/sys/obj_packager.sinc
+// S.T.E.E.L. .safe to Linux x86-64 ELF Relocatable Object Packager
+// ==========================================
+
+fn pack_safe_to_obj!(safe_path, obj_path, sym_name_ptr, arena) [
+    // 1. Open .safe file and read the 32-byte header
+    safe_fd = sys_open_read!(safe_path);
+    if (safe_fd < 0) [
+        sys_exit!(1); // Input file missing or inaccessible
+    ]
+
+    header_buf = arena_alloc_words!(arena, 4);
+    header_bytes = sys_read!(safe_fd, header_buf, 32);
+    if (header_bytes != 32) [
+        sys_close!(safe_fd);
+        sys_exit!(2);
+    ]
+
+    format = header_buf@[0];
+    magic = format & 4294967295;
+    version = format >> 32;
+    code_len = header_buf@[1];
+    main_offset = header_buf@[2];
+    if ((magic != 1396786245) | (version != 1) | (header_buf@[3] != 32) | (!(main_offset < code_len))) [
+        sys_close!(safe_fd);
+        sys_exit!(2); // Invalid .safe header
+    ]
+
+    // 2. Open Output Linux ELF Object File (.o)
+    obj_fd = sys_open_write!(obj_path);
+    if (obj_fd < 0) [
+        sys_close!(safe_fd);
+        sys_exit!(3); // Cannot write output object file
+    ]
+
+    // 3. Prepare Symbol String Table (.strtab)
+    // strtab begins with a null byte at index 0, followed by the exported symbol name
+    strtab_buf = arena_alloc_words!(arena, 32);
+    loop (si:32 = 0 .. 32) [
+        strtab_buf@[si] = 0;
+    ]
+
+    // Determine symbol name length and copy into strtab starting at byte 1
+    sym_len = 0;
+    if (sym_name_ptr != 0) [
+        loop (k:256 = 0 .. 256) [
+            ch = sym_name_ptr@[k * 1];
+            if ((ch != 0) & (sym_len == k)) [
+                strtab_buf@[(k + 1) * 1] = ch;
+                sym_len = k + 1;
+            ]
+        ]
+    ]
+
+    if (sym_len == 0) [
+        // Default symbol name: "sinc_entry" (10 bytes)
+        strtab_buf@[1 * 1] = 115; // 's'
+        strtab_buf@[2 * 1] = 105; // 'i'
+        strtab_buf@[3 * 1] = 110; // 'n'
+        strtab_buf@[4 * 1] = 99;  // 'c'
+        strtab_buf@[5 * 1] = 95;  // '_'
+        strtab_buf@[6 * 1] = 101; // 'e'
+        strtab_buf@[7 * 1] = 110; // 'n'
+        strtab_buf@[8 * 1] = 116; // 't'
+        strtab_buf@[9 * 1] = 114; // 'r'
+        strtab_buf@[10 * 1] = 121; // 'y'
+        sym_len = 10;
+    ]
+    strtab_buf@[(sym_len + 1) * 1] = 0;
+    strtab_size = sym_len + 2;
+
+    // 4. Prepare Section Header String Table (.shstrtab)
+    // Layout: \0.text\0.strtab\0.symtab\0.shstrtab\0
+    // Offsets: .text=1, .strtab=7, .symtab=15, .shstrtab=23 (total 33 bytes)
+    shstrtab_buf = arena_alloc_words!(arena, 8);
+    loop (sbi:8 = 0 .. 8) [
+        shstrtab_buf@[sbi] = 0;
+    ]
+
+    // Byte by byte setup of shstrtab
+    shstrtab_buf@[0 * 1] = 0;
+    // ".text\0" (1..6)
+    shstrtab_buf@[1 * 1] = 46;  // '.'
+    shstrtab_buf@[2 * 1] = 116; // 't'
+    shstrtab_buf@[3 * 1] = 101; // 'e'
+    shstrtab_buf@[4 * 1] = 120; // 'x'
+    shstrtab_buf@[5 * 1] = 116; // 't'
+    shstrtab_buf@[6 * 1] = 0;
+    // ".strtab\0" (7..14)
+    shstrtab_buf@[7 * 1] = 46;  // '.'
+    shstrtab_buf@[8 * 1] = 115; // 's'
+    shstrtab_buf@[9 * 1] = 116; // 't'
+    shstrtab_buf@[10 * 1] = 114; // 'r'
+    shstrtab_buf@[11 * 1] = 116; // 't'
+    shstrtab_buf@[12 * 1] = 97;  // 'a'
+    shstrtab_buf@[13 * 1] = 98;  // 'b'
+    shstrtab_buf@[14 * 1] = 0;
+    // ".symtab\0" (15..22)
+    shstrtab_buf@[15 * 1] = 46;  // '.'
+    shstrtab_buf@[16 * 1] = 115; // 's'
+    shstrtab_buf@[17 * 1] = 121; // 'y'
+    shstrtab_buf@[18 * 1] = 109; // 'm'
+    shstrtab_buf@[19 * 1] = 116; // 't'
+    shstrtab_buf@[20 * 1] = 97;  // 'a'
+    shstrtab_buf@[21 * 1] = 98;  // 'b'
+    shstrtab_buf@[22 * 1] = 0;
+    // ".shstrtab\0" (23..32)
+    shstrtab_buf@[23 * 1] = 46;  // '.'
+    shstrtab_buf@[24 * 1] = 115; // 's'
+    shstrtab_buf@[25 * 1] = 104; // 'h'
+    shstrtab_buf@[26 * 1] = 115; // 's'
+    shstrtab_buf@[27 * 1] = 116; // 't'
+    shstrtab_buf@[28 * 1] = 114; // 'r'
+    shstrtab_buf@[29 * 1] = 116; // 't'
+    shstrtab_buf@[30 * 1] = 97;  // 'a'
+    shstrtab_buf@[31 * 1] = 98;  // 'b'
+    shstrtab_buf@[32 * 1] = 0;
+    shstrtab_size = 33;
+
+    // 5. Layout Calculation (16-byte aligned sections)
+    ehdr_size = 64;
+    text_offset = 64;
+    text_size = code_len;
+
+    strtab_offset = (text_offset + text_size + 15) & (0 - 16);
+    symtab_offset = (strtab_offset + strtab_size + 15) & (0 - 16);
+    symtab_size = 72; // 3 symbols x 24 bytes
+
+    shstrtab_offset = (symtab_offset + symtab_size + 15) & (0 - 16);
+    shdrs_offset = (shstrtab_offset + shstrtab_size + 15) & (0 - 16);
+
+    // 6. Build Symbol Table (.symtab, 72 bytes = 9 words)
+    // Symbol 0: STN_UNDEF (24 bytes zero)
+    // Symbol 1: SECTION .text (st_info=3 STT_SECTION, st_shndx=1)
+    // Symbol 2: GLOBAL FUNC (st_name=1, st_info=0x12 STB_GLOBAL|STT_FUNC, st_shndx=1, st_value=main_offset)
+    symtab_buf = arena_alloc_words!(arena, 9);
+    loop (smi:9 = 0 .. 9) [
+        symtab_buf@[smi] = 0;
+    ]
+    // Symbol 1: Word 3 (st_name=0, st_info=3, st_other=0, st_shndx=1)
+    symtab_buf@[3] = 0 | (3 << 32) | (1 << 48);
+    // Symbol 1: Word 4 (st_value=0), Word 5 (st_size=0)
+
+    // Symbol 2: Word 6 (st_name=1, st_info=18, st_other=0, st_shndx=1)
+    symtab_buf@[6] = 1 | (18 << 32) | (1 << 48);
+    // Symbol 2: Word 7 (st_value=main_offset)
+    symtab_buf@[7] = main_offset;
+    // Symbol 2: Word 8 (st_size = code_len - main_offset)
+    symtab_buf@[8] = code_len - main_offset;
+
+    // 7. Build ELF64 Header (64 bytes = 8 words)
+    // e_type=1 (ET_REL), e_machine=62 (EM_X86_64), e_version=1
+    elf_hdr = arena_alloc_words!(arena, 8);
+    elf_hdr@[0] = 127 | (69 << 8) | (76 << 16) | (70 << 24) | (2 << 32) | (1 << 40) | (1 << 48);
+    elf_hdr@[1] = 0;
+    elf_hdr@[2] = 1 | (62 << 16) | (1 << 32);
+    elf_hdr@[3] = 0; // e_entry = 0
+    elf_hdr@[4] = 0; // e_phoff = 0
+    elf_hdr@[5] = shdrs_offset;
+    elf_hdr@[6] = 0 | (64 << 32); // e_flags=0, e_ehsize=64, e_phentsize=0
+    elf_hdr@[7] = 0 | (64 << 16) | (5 << 32) | (4 << 48); // e_phnum=0, e_shentsize=64, e_shnum=5, e_shstrndx=4
+
+    // 8. Build Section Header Table (5 headers x 64 bytes = 40 words)
+    shdrs = arena_alloc_words!(arena, 40);
+    loop (shi:40 = 0 .. 40) [
+        shdrs@[shi] = 0;
+    ]
+
+    // Header 1: .text (sh_name=1, SHT_PROGBITS=1, SHF_ALLOC|SHF_EXECINSTR=6, align=16)
+    shdrs@[8]  = 1 | (1 << 32);
+    shdrs@[9]  = 6;
+    shdrs@[10] = 0;
+    shdrs@[11] = text_offset;
+    shdrs@[12] = text_size;
+    shdrs@[13] = 0;
+    shdrs@[14] = 16;
+    shdrs@[15] = 0;
+
+    // Header 2: .strtab (sh_name=7, SHT_STRTAB=3, flags=0, align=1)
+    shdrs@[16] = 7 | (3 << 32);
+    shdrs@[17] = 0;
+    shdrs@[18] = 0;
+    shdrs@[19] = strtab_offset;
+    shdrs@[20] = strtab_size;
+    shdrs@[21] = 0;
+    shdrs@[22] = 1;
+    shdrs@[23] = 0;
+
+    // Header 3: .symtab (sh_name=15, SHT_SYMTAB=2, flags=0, link=2 (.strtab), info=2, align=8, entsize=24)
+    shdrs@[24] = 15 | (2 << 32);
+    shdrs@[25] = 0;
+    shdrs@[26] = 0;
+    shdrs@[27] = symtab_offset;
+    shdrs@[28] = symtab_size;
+    shdrs@[29] = 2 | (2 << 32);
+    shdrs@[30] = 8;
+    shdrs@[31] = 24;
+
+    // Header 4: .shstrtab (sh_name=23, SHT_STRTAB=3, flags=0, align=1)
+    shdrs@[32] = 23 | (3 << 32);
+    shdrs@[33] = 0;
+    shdrs@[34] = 0;
+    shdrs@[35] = shstrtab_offset;
+    shdrs@[36] = shstrtab_size;
+    shdrs@[37] = 0;
+    shdrs@[38] = 1;
+    shdrs@[39] = 0;
+
+    // 9. Write Complete File Sequentially
+    // A. Write ELF Header (64 bytes)
+    sys_write!(obj_fd, elf_hdr, 64);
+
+    // B. Read and Write .text Section (code_len bytes from .safe)
+    code_buf = arena_alloc_words!(arena, (code_len + 7) >> 3);
+    code_read = sys_read!(safe_fd, code_buf, code_len);
+    if (code_read != code_len) [
+        sys_close!(safe_fd);
+        sys_close!(obj_fd);
+        sys_exit!(6);
+    ]
+    sys_write!(obj_fd, code_buf, code_len);
+
+    // Pad from (text_offset + text_size) to strtab_offset
+    pad_bytes = arena_alloc_words!(arena, 2);
+    pad_bytes@[0] = 0;
+    pad_bytes@[1] = 0;
+    curr_pos = text_offset + text_size;
+    if (strtab_offset > curr_pos) [
+        sys_write!(obj_fd, pad_bytes, strtab_offset - curr_pos);
+    ]
+
+    // C. Write .strtab
+    sys_write!(obj_fd, strtab_buf, strtab_size);
+
+    // Pad to symtab_offset
+    curr_pos = strtab_offset + strtab_size;
+    if (symtab_offset > curr_pos) [
+        sys_write!(obj_fd, pad_bytes, symtab_offset - curr_pos);
+    ]
+
+    // D. Write .symtab
+    sys_write!(obj_fd, symtab_buf, symtab_size);
+
+    // Pad to shstrtab_offset
+    curr_pos = symtab_offset + symtab_size;
+    if (shstrtab_offset > curr_pos) [
+        sys_write!(obj_fd, pad_bytes, shstrtab_offset - curr_pos);
+    ]
+
+    // E. Write .shstrtab
+    sys_write!(obj_fd, shstrtab_buf, shstrtab_size);
+
+    // Pad to shdrs_offset
+    curr_pos = shstrtab_offset + shstrtab_size;
+    if (shdrs_offset > curr_pos) [
+        sys_write!(obj_fd, pad_bytes, shdrs_offset - curr_pos);
+    ]
+
+    // F. Write Section Header Table (320 bytes)
+    sys_write!(obj_fd, shdrs, 320);
+
+    sys_close!(safe_fd);
+    sys_close!(obj_fd);
+    ret 0;
+]

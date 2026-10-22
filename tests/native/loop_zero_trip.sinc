@@ -1,0 +1,8 @@
+// EXPECT: 0
+fn main() [
+    count = 0;
+    loop (i:5 = 5 .. 5) [
+        count = count + 1;
+    ]
+    ret count;
+]

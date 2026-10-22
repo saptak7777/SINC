@@ -1,0 +1,6 @@
+fn main(ptr) [
+    val1 = (ptr)@;
+    idx = 1;
+    val2 = ptr@[idx * 8];
+    ret val1 + val2;
+]

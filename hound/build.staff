@@ -1,0 +1,21 @@
+// ==========================================
+// hound/build.staff
+// SINC HOUND Hardware Logic Probe Manifest
+// ==========================================
+
+artifact hound [
+    target = linux_x64;
+    type   = bin;
+]
+
+deps [
+    steel/sys/sys.sinc;
+    steel/sys/arena.sinc;
+    steel/sys/stream.sinc;
+    steel/sys/os_linux.sinc;
+]
+
+flags [
+    optimize = 3;
+    heap     = 33554432;
+]

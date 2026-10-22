@@ -1,0 +1,8 @@
+// COMPILE_ERROR: 7
+// Test: Compound assignment += is not supported and must cleanly reject with exit 7
+fn main() [
+    a = 1;
+    b = 2;
+    a += b;
+    ret a;
+]

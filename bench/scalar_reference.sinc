@@ -1,0 +1,7 @@
+fn scalar_reference(a, b) [
+    ret ((a + b * 2) - 5) / 3;
+]
+
+fn main() [
+    ret scalar_reference(12, 6);
+]

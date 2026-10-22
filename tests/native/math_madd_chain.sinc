@@ -1,0 +1,11 @@
+// EXPECT: 216
+// Test: Chained multiply-accumulate operations in tight loop
+fn main() [
+    total = 0;
+    loop (i:50 = 0 .. 50) [
+        a = (i & 3) + 1;
+        b = (i & 7) + 2;
+        total = total + a * b;
+    ]
+    ret total & 255;
+]

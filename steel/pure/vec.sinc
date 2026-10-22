@@ -1,0 +1,71 @@
+// ==========================================
+// steel/data/vec.sinc
+// S.T.E.E.L. Dynamic Arena-Backed Word Vector
+// ==========================================
+
+const VEC_DATA = 0; // Pointer to arena words
+const VEC_LEN  = 1; // Current count of elements
+const VEC_CAP  = 2; // Current allocated capacity
+
+fn vec_new!(arena, initial_cap) [
+    cap = initial_cap;
+    if (cap < 8) [
+        cap = 8;
+    ]
+    data = arena_alloc_words!(arena, cap);
+    vec = arena_alloc_words!(arena, 3);
+    vec.VEC_DATA = data;
+    vec.VEC_LEN  = 0;
+    vec.VEC_CAP  = cap;
+    ret vec;
+]
+
+fn vec_len(vec) [
+    ret vec.VEC_LEN;
+]
+
+fn vec_get(vec, index) [
+    data = vec.VEC_DATA;
+    ret data@[index];
+]
+
+fn vec_set!(vec, index, value) [
+    data = vec.VEC_DATA;
+    data@[index] = value;
+    ret 0;
+]
+
+fn vec_push!(arena, vec, value) [
+    len = vec.VEC_LEN;
+    cap = vec.VEC_CAP;
+    data = vec.VEC_DATA;
+    if (!(len < cap)) [
+        new_cap = cap * 2;
+        new_data = arena_alloc_words!(arena, new_cap);
+        loop (i:10000000 = 0 .. len) [
+            new_data@[i] = data@[i];
+        ]
+        vec.VEC_DATA = new_data;
+        vec.VEC_CAP  = new_cap;
+        data = new_data;
+    ]
+    data@[len] = value;
+    vec.VEC_LEN = len + 1;
+    ret len;
+]
+
+fn vec_pop!(vec) [
+    len = vec.VEC_LEN;
+    if (len == 0) [
+        ret 0;
+    ]
+    new_len = len - 1;
+    vec.VEC_LEN = new_len;
+    data = vec.VEC_DATA;
+    ret data@[new_len];
+]
+
+fn vec_clear!(vec) [
+    vec.VEC_LEN = 0;
+    ret 0;
+]

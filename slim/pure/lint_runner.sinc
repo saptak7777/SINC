@@ -1,0 +1,28 @@
+// ==========================================
+// slim/pure/lint_runner.sinc
+// S.L.I.M. Master Lint Pipeline Dispatcher
+// Executes the Unified Two-Pass Tape Pipeline:
+//   Pass 1: slim_scan_tape! (tape_scanner.sinc)
+//   Pass 2: slim_audit_tape! (tape_auditor.sinc)
+//   Flush:  slim_flush_dead_weight! (tape_scanner.sinc)
+// Pure text algorithms: zero '!', zero syscalls
+// ==========================================
+
+fn slim_lint_all!(arena, src_tape, tape_len, diag_buf) [
+    sym_reg = arena_alloc_words!(arena, 16);
+
+    // Pass 1: Global Symbol & Extern Indexer
+    slim_scan_tape!(arena, src_tape, tape_len, diag_buf, sym_reg);
+
+    // Pass 2: Unified Statement, Wrapper, & Scope Auditor
+    v_audit = slim_audit_tape!(arena, src_tape, tape_len, diag_buf, sym_reg);
+
+    // Root Reachability Resolution (Transitive DCE graph traversal from main/entrypoints)
+    slim_resolve_reachability!(src_tape, sym_reg);
+
+    // Flush: Whole-Program Dead Weight Check (Catches uncalled functions & dead islands)
+    v_dead = slim_flush_dead_weight!(diag_buf, sym_reg);
+
+    total_violations = v_audit + v_dead;
+    ret total_violations;
+]

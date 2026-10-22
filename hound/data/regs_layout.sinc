@@ -1,0 +1,30 @@
+// ==========================================
+// hound/data/regs_layout.sinc
+// HOUND: The SINC Hardware Logic Probe
+// Linux x86-64 user_regs_struct Offsets
+// ==========================================
+
+const REG_R15      = 0;
+const REG_R14      = 1;
+const REG_R13      = 2;
+const REG_R12      = 3;
+const REG_RBP      = 4;
+const REG_RBX      = 5;
+const REG_R11      = 6;
+const REG_R10      = 7;
+const REG_R9       = 8;
+const REG_R8       = 9;
+const REG_RAX      = 10;
+const REG_RCX      = 11;
+const REG_RDX      = 12;
+const REG_RSI      = 13;
+const REG_RDI      = 14;
+const REG_ORIG_RAX = 15;
+const REG_RIP      = 16;
+const REG_CS       = 17;
+const REG_EFLAGS   = 18;
+const REG_RSP      = 19;
+const REG_SS       = 20;
+
+// Struct Size: 216 bytes (27 words)
+const REGS_STRUCT_WORDS = 27;

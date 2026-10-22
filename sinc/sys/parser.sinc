@@ -1,0 +1,512 @@
+// ==========================================
+// sinc/sys/parser.sinc
+// SINC Compiler: Self-Hosted Recursive Descent Parser
+// Token IDs: Defined in sinc/data/lexer.sinc (EOF=0, FN=1, RET=3, CONST=4, IF=5,
+//            LOOP=6, ELSE=7, EXTERN=8, IDENT=9, NUMBER=10, LPAREN=11, RPAREN=12,
+//            LBRACKET=13, RBRACKET=14, COMMA=15, DOT=16, EQUAL=17, SEMI=22,
+//            AT=28, DOTDOT=37; operators & punctuation 18..36)
+// ==========================================
+
+// ProgramDescriptor layout offsets
+const PROG_FUNC_TABLE   = 0;
+const PROG_FUNC_COUNT   = 1;
+const PROG_CONST_TABLE  = 2;
+const PROG_EXTERN_TABLE = 3;
+const PROG_SYM_TABLE    = 4;
+const PROG_SYM_CAP      = 5;
+const PROG_CALL_TABLE   = 6;
+const PROG_CALL_COUNT   = 7;
+const PROG_FUNC_BY_SYM  = 8;
+
+// ---------------------------------------------------------------------------
+// parse_ret!
+// ---------------------------------------------------------------------------
+fn parse_ret!(ctx, bindings, inst_count) [
+    lexer_advance!(ctx);
+    packed = parse_expr!(0, ctx, bindings, inst_count);
+
+    if (ctx@[3].TOK_TYPE != 22) [
+        sys_exit!(5);
+    ]
+    lexer_advance!(ctx);
+
+    ret ir_emit_raw!(ctx@[8], packed & 4294967295, IR_OP_RET, 0, 65535, packed >> 32, 0, 0, 0);
+]
+
+// ---------------------------------------------------------------------------
+// parse_loop!
+// ---------------------------------------------------------------------------
+fn parse_loop!(ctx, bindings, inst_count) [
+    out_token = lexer_advance!(ctx);
+    has_paren = 0;
+    if (out_token.TOK_TYPE == 11) [
+        has_paren = 1;
+        lexer_advance!(ctx);
+    ]
+
+    if (out_token.TOK_TYPE != 9) [
+        sys_exit!(7);
+    ]
+    sym_id       = out_token.TOK_VAL;
+    tok_flags    = out_token.TOK_FLAGS;
+    type_payload = tok_flags >> 32;
+    lexer_advance!(ctx);
+
+    if (out_token.TOK_TYPE != 17) [
+        sys_exit!(7);
+    ]
+    lexer_advance!(ctx);
+
+    s_cnt      = inst_count;
+    packed     = parse_expr!(18, ctx, bindings, inst_count);
+    inst_count = packed & 4294967295;
+    start_val  = packed >> 32;
+    start_k    = 4294967295;
+    if ((inst_count > s_cnt) & ((ctx@[8]@[(inst_count * 4 - 4)] & 255) == 1)) [
+        start_k = ctx@[8]@[(inst_count * 4 - 2)] & 4294967295;
+    ]
+
+    if (out_token.TOK_TYPE != 37) [
+        sys_exit!(7);
+    ]
+    lexer_advance!(ctx);
+
+    e_cnt      = inst_count;
+    packed     = parse_expr!(0, ctx, bindings, inst_count);
+    inst_count = packed & 4294967295;
+    end_val    = packed >> 32;
+    end_k      = 4294967295;
+    if ((inst_count > e_cnt) & ((ctx@[8]@[(inst_count * 4 - 4)] & 255) == 1)) [
+        end_k = ctx@[8]@[(inst_count * 4 - 2)] & 4294967295;
+    ]
+
+    if (has_paren != 0) [
+        if (out_token.TOK_TYPE != 12) [
+            sys_exit!(7);
+        ]
+        lexer_advance!(ctx);
+    ]
+
+    loop_payload = 0;
+    if ((start_k != 4294967295) & (end_k != 4294967295)) [
+        loop_payload = start_k | (end_k << 32);
+        if ((type_payload > 0) & ((end_k - start_k) > type_payload)) [
+            sys_exit!(17);
+        ]
+        type_payload = end_k - start_k;
+    ]
+
+    loop_val   = fresh_val!(ctx@[9]);
+    inst_count = ir_emit_raw!(ctx@[8], inst_count, IR_OP_UPDATE, 0, loop_val, start_val, 0, 0, loop_payload);
+    bindings_touch!(ctx@[15], bindings, sym_id, 1, 0, type_payload, loop_val);
+
+    entry_cond       = fresh_val!(ctx@[9]);
+    inst_count       = ir_emit_raw!(ctx@[8], inst_count, IR_OP_CMP, 2, entry_cond, loop_val, end_val, 0, 1 << 32);
+    entry_branch_idx = inst_count;
+    inst_count       = ir_emit_raw!(ctx@[8], inst_count, IR_OP_COND_BR, 0, 65535, entry_cond, loop_val, 0, loop_payload);
+    inst_count       = parse_block!(ctx, bindings, inst_count);
+
+    one_const  = fresh_val!(ctx@[9]);
+    inst_count = ir_emit_raw!(ctx@[8], inst_count, IR_OP_CONST, 0, one_const, 0, 0, 1, 1 | (1 << 32));
+    inc_val    = fresh_val!(ctx@[9]);
+    inst_count = ir_emit_raw!(ctx@[8], inst_count, IR_OP_BIN, 0, inc_val, loop_val, one_const, 0, 0);
+    inst_count = ir_emit_raw!(ctx@[8], inst_count, IR_OP_UPDATE, 0, loop_val, inc_val, 0, 0, 0);
+
+    bottom_cond       = fresh_val!(ctx@[9]);
+    inst_count        = ir_emit_raw!(ctx@[8], inst_count, IR_OP_CMP, 2, bottom_cond, loop_val, end_val, 0, 1 << 32);
+    bottom_branch_idx = inst_count;
+    inst_count        = ir_emit_raw!(ctx@[8], inst_count, IR_OP_COND_BR, 0, 65535, bottom_cond, loop_val, 0, loop_payload);
+
+    ir_patch_cond_br!(ctx@[8], entry_branch_idx, entry_branch_idx + 1, inst_count);
+    ir_patch_cond_br!(ctx@[8], bottom_branch_idx, entry_branch_idx + 1, inst_count);
+
+    ret inst_count;
+]
+
+// ---------------------------------------------------------------------------
+// parse_const_decl!
+// ---------------------------------------------------------------------------
+fn parse_const_decl!(ctx) [
+    out_token = lexer_advance!(ctx);
+    if (out_token.TOK_TYPE != 9) [
+        sys_exit!(1);
+    ]
+    sym_id = out_token.TOK_VAL;
+    lexer_advance!(ctx);
+
+    if (out_token.TOK_TYPE != 17) [
+        sys_exit!(2);
+    ]
+    lexer_advance!(ctx);
+
+    is_neg = 0;
+    if (out_token.TOK_TYPE == 19) [
+        is_neg = 1;
+        lexer_advance!(ctx);
+    ]
+
+    if (out_token.TOK_TYPE != 10) [
+        sys_exit!(3);
+    ]
+    val = out_token.TOK_VAL;
+    if (is_neg != 0) [
+        val = -val;
+    ]
+    lexer_advance!(ctx);
+
+    if (out_token.TOK_TYPE != 22) [
+        sys_exit!(4);
+    ]
+    lexer_advance!(ctx);
+
+    const_table             = ctx@[10];
+    idx                     = sym_id * 2;
+    const_table@[idx]       = 1;
+    const_table@[(idx + 1)] = val;
+
+    ret 0;
+]
+
+// ---------------------------------------------------------------------------
+// parse_extern!
+// ---------------------------------------------------------------------------
+fn parse_extern!(ctx, ext_cnt, func_by_sym) [
+    lexer_advance!(ctx);
+    out_token = lexer_advance!(ctx);
+
+    if (out_token.TOK_TYPE != 9) [
+        sys_exit!(2);
+    ]
+    sym_id = out_token.TOK_VAL;
+    lexer_advance!(ctx);
+
+    if (out_token.TOK_TYPE != 11) [
+        sys_exit!(3);
+    ]
+    lexer_advance!(ctx);
+
+    if (out_token.TOK_TYPE != 12) [
+        sys_exit!(4);
+    ]
+    lexer_advance!(ctx);
+
+    if (out_token.TOK_TYPE != 22) [
+        sys_exit!(5);
+    ]
+    lexer_advance!(ctx);
+
+    ext_idx = ext_cnt@[0];
+    desc    = arena_alloc_words!(ctx@[0], 11);
+    loop (d_idx:11 = 0 .. 11) [
+        desc@[d_idx] = 0;
+    ]
+
+    desc@[8]             = sym_id;
+    desc@[10]            = 0 - ((ext_idx + 1) * 32);
+    func_by_sym@[sym_id] = desc;
+    ext_cnt@[0]          = ext_idx + 1;
+    ret 0;
+]
+
+// ---------------------------------------------------------------------------
+// parse_block!
+// ---------------------------------------------------------------------------
+fn parse_block!(ctx, bindings, inst_count) [
+    out_token = ctx@[3];
+    if (out_token.TOK_TYPE != 13) [
+        sys_exit!(7);
+    ]
+    lexer_advance!(ctx);
+
+    loop (i:1000000 = 0 .. 1000000) [
+        tok_type = out_token.TOK_TYPE;
+        if (tok_type == 14) [
+            lexer_advance!(ctx);
+            ret inst_count;
+        ]
+        if (tok_type == 0) [
+            sys_exit!(3);
+        ]
+        if (tok_type == 3) [
+            inst_count = parse_ret!(ctx, bindings, inst_count);
+        ] else [
+            if (tok_type == 5) [
+                inst_count = parse_if!(ctx, bindings, inst_count);
+            ] else [
+                if (tok_type == 6) [
+                    inst_count = parse_loop!(ctx, bindings, inst_count);
+                ] else [
+                    inst_count = parse_assign_or_expr_stmt!(ctx, bindings, inst_count);
+                ]
+            ]
+        ]
+    ]
+    sys_exit!(3);
+]
+
+// ---------------------------------------------------------------------------
+// parse_if!
+// ---------------------------------------------------------------------------
+fn parse_if!(ctx, bindings, inst_count) [
+    lexer_advance!(ctx);
+    packed     = parse_expr!(0, ctx, bindings, inst_count);
+    branch_idx = packed & 4294967295;
+    next_count = ir_emit_raw!(ctx@[8], branch_idx, IR_OP_COND_BR, 0, 65535, packed >> 32, 0, 0, 0);
+
+    journal = ctx@[15];
+    mark    = journal@[0];
+
+    then_count = parse_block!(ctx, bindings, next_count);
+    else_count = ir_emit_raw!(ctx@[8], then_count, IR_OP_BR, 0, 65535, 0, 0, 0, 0);
+    then_lin   = bindings_branch_close!(journal, bindings, mark, -1);
+
+    out_token   = ctx@[3];
+    final_count = else_count;
+
+    if (out_token.TOK_TYPE == 7) [
+        lexer_advance!(ctx);
+        if (out_token.TOK_TYPE == 5) [
+            final_count = parse_if!(ctx, bindings, else_count);
+        ] else [
+            final_count = parse_block!(ctx, bindings, else_count);
+        ]
+    ]
+
+    ir_patch_cond_br!(ctx@[8], branch_idx, branch_idx + 1, else_count);
+    ir_patch_br!(ctx@[8], then_count, final_count);
+    bindings_branch_close!(journal, bindings, mark, then_lin);
+    ret final_count;
+]
+
+// ---------------------------------------------------------------------------
+// parse_assign_or_expr_stmt!
+// ---------------------------------------------------------------------------
+fn parse_assign_or_expr_stmt!(ctx, bindings, inst_count) [
+    start_count = inst_count;
+    out_token   = ctx@[3];
+    lhs_sym     = out_token.TOK_VAL;
+    lhs_flags   = out_token.TOK_FLAGS;
+    lhs_lin     = lhs_flags & 1;
+    lhs_bound   = lhs_flags >> 32;
+    packed      = parse_expr!(0, ctx, bindings, inst_count);
+    inst_count  = packed & 4294967295;
+    lhs_val     = packed >> 32;
+
+    if (out_token.TOK_TYPE == 17) [
+        lhs_count  = inst_count;
+        ctx@[18]   = 0;
+        lexer_advance!(ctx);
+        packed     = parse_expr!(0, ctx, bindings, inst_count);
+        inst_count = packed & 4294967295;
+        rhs_val    = packed >> 32;
+
+        tape = ctx@[8];
+        if (lhs_count > start_count) [
+            last_inst = (lhs_count - 1) * 4;
+            last_w0   = tape@[last_inst];
+            if ((last_w0 & 255) != 2) [
+                sys_exit!(7);
+            ]
+            if (ctx@[11] != 0) [
+                sys_exit!(14);
+            ]
+            scale            = (last_w0 >> 8) & 255;
+            w1               = tape@[(last_inst + 1)];
+            base             = w1 & 4294967295;
+            idx              = (w1 >> 32) & 4294967295;
+            disp             = tape@[(last_inst + 2)];
+            base_cap         = tape@[(last_inst + 3)];
+            tape@[last_inst] = 0;
+            inst_count       = ir_emit_raw!(tape, inst_count, IR_OP_STORE_IND | (((last_w0 >> 58) & 1) * FLAG_LINEAR_NO_ALIAS), scale, rhs_val, base, idx, disp, base_cap);
+        ] else [
+            rhs_move = (ctx@[17] != 0) & (inst_count == lhs_count);
+            is_lin   = lhs_lin & ((lhs_bound > 0) | (rhs_move != 0));
+            if ((lhs_bound == 0) & (inst_count == lhs_count)) [
+                lhs_bound = ctx@[18];
+            ]
+            bindings@[lhs_sym] = (1 + is_lin) | (lhs_val << 8) | (lhs_bound << 32);
+            inst_count         = ir_emit_raw!(tape, inst_count, IR_OP_UPDATE | (is_lin * FLAG_LINEAR_NO_ALIAS), 0, lhs_val, rhs_val, 0, 0, lhs_bound << 32);
+        ]
+    ]
+
+    ctx@[17] = 0;
+    ctx@[18] = 0;
+    if (out_token.TOK_TYPE != 22) [
+        sys_exit!(5);
+    ]
+    lexer_advance!(ctx);
+    ret inst_count;
+]
+
+// ---------------------------------------------------------------------------
+// parse_function_params!
+// ---------------------------------------------------------------------------
+fn parse_function_params!(ctx, bindings) [
+    out_tok = ctx@[3];
+    loop (p:1000 = 0 .. 1000) [
+        if (out_tok.TOK_TYPE == 12) [
+            ret 0;
+        ]
+        if (out_tok.TOK_TYPE == 0) [
+            sys_exit!(4);
+        ]
+        if (out_tok.TOK_TYPE != 9) [
+            sys_exit!(1);
+        ]
+
+        sym          = out_tok.TOK_VAL;
+        tok_flags    = out_tok.TOK_FLAGS;
+        lin          = (tok_flags & FLAG_LINEAR) != 0;
+        type_payload = tok_flags >> 32;
+        is_ptr       = type_payload > 0;
+        lexer_advance!(ctx);
+        if (out_tok.TOK_TYPE == 28) [
+            is_ptr = 1;
+            lexer_advance!(ctx);
+        ]
+
+        bindings_touch!(ctx@[15], bindings, sym, 1, lin & is_ptr, type_payload, fresh_val!(ctx@[9]));
+
+        if (out_tok.TOK_TYPE == 15) [
+            lexer_advance!(ctx);
+        ]
+    ]
+    sys_exit!(4);
+]
+
+// ---------------------------------------------------------------------------
+// parse_function!
+// ---------------------------------------------------------------------------
+fn parse_function!(ctx) [
+    val_id_counter_ptr     = ctx@[9];
+    val_id_counter_ptr@[0] = 0;
+    journal                = ctx@[15];
+    journal@[0]            = 0;
+
+    out_token = lexer_advance!(ctx);
+    if (out_token.TOK_TYPE != 9) [
+        sys_exit!(1);
+    ]
+    func_sym_id = out_token.TOK_VAL;
+    ctx@[11]    = out_token.TOK_FLAGS & 2;
+    lexer_advance!(ctx);
+
+    if (out_token.TOK_TYPE != 11) [
+        sys_exit!(2);
+    ]
+    lexer_advance!(ctx);
+
+    arena    = ctx@[0];
+    tape_ptr = arena.ARENA_NEXT;
+    ctx@[8]  = tape_ptr;
+
+    bindings = ctx@[16];
+    bindings_init!(bindings, ctx@[5]);
+    parse_function_params!(ctx, bindings);
+
+    param_cnt = val_id_counter_ptr@[0];
+
+    if (out_token.TOK_TYPE != 12) [
+        sys_exit!(3);
+    ]
+    lexer_advance!(ctx);
+
+    glb_call_tbl     = ctx@[12];
+    call_cnt_ptr     = ctx@[13];
+    base_calls       = call_cnt_ptr@[0];
+    loc_call_tbl     = glb_call_tbl + (base_calls * 24);
+    ctx@[12]         = loc_call_tbl;
+    call_cnt_ptr@[0] = 0;
+
+    final_count = parse_block!(ctx, bindings, 0);
+    if (final_count > 65534) [
+        sys_exit!(97);
+    ]
+    if (val_id_counter_ptr@[0] > 65534) [
+        sys_exit!(96);
+    ]
+
+    loc_calls        = call_cnt_ptr@[0];
+    ctx@[12]         = glb_call_tbl;
+    call_cnt_ptr@[0] = base_calls + loc_calls;
+
+    arena.ARENA_NEXT = tape_ptr + (final_count * 32);
+
+    func_desc = arena_alloc_words!(arena, 15);
+    if (func_desc == 0) [
+        sys_exit!(99);
+    ]
+    func_desc@[0]  = tape_ptr;
+    func_desc@[1]  = final_count;
+    func_desc@[2]  = val_id_counter_ptr@[0];
+    func_desc@[3]  = -1;
+    func_desc@[4]  = 0;
+    func_desc@[5]  = param_cnt;
+    func_desc@[6]  = loc_call_tbl;
+    func_desc@[7]  = loc_calls;
+    func_desc@[8]  = func_sym_id;
+    func_desc@[9]  = 0;
+    func_desc@[10] = 0;
+    ret func_desc;
+]
+
+// ---------------------------------------------------------------------------
+// parse_program!
+// ---------------------------------------------------------------------------
+fn parse_program!(ctx) [
+    arena       = ctx@[0];
+    prog_desc   = arena_alloc_words!(arena, 9);
+    func_table  = arena_alloc_words!(arena, 1024);
+    func_by_sym = arena_alloc_words!(arena, ctx@[5]);
+    if ((prog_desc == 0) | (func_table == 0) | (func_by_sym == 0)) [
+        sys_exit!(99);
+    ]
+
+    func_count  = 0;
+    ext_cnt     = arena_alloc_words!(arena, 1);
+    ext_cnt@[0] = 0;
+    out_token   = ctx@[3];
+
+    loop (i:100000 = 0 .. 100000) [
+        tok_type = out_token.TOK_TYPE;
+
+        if (tok_type == 0) [
+            call_count_ptr                = ctx@[13];
+            prog_desc@[PROG_FUNC_TABLE]   = func_table;
+            prog_desc@[PROG_FUNC_COUNT]   = func_count;
+            prog_desc@[PROG_CONST_TABLE]  = ctx@[10];
+            prog_desc@[PROG_EXTERN_TABLE] = ext_cnt;
+            prog_desc@[PROG_SYM_TABLE]    = ctx@[4];
+            prog_desc@[PROG_SYM_CAP]      = ctx@[5];
+            prog_desc@[PROG_CALL_TABLE]   = ctx@[12];
+            prog_desc@[PROG_CALL_COUNT]   = call_count_ptr@[0];
+            prog_desc@[PROG_FUNC_BY_SYM]  = func_by_sym;
+            ret prog_desc;
+        ]
+
+        if (tok_type == 1) [
+            if (func_count > 1023) [
+                sys_exit!(98);
+            ]
+            func_desc               = parse_function!(ctx);
+            func_table@[func_count] = func_desc;
+            func_sym_id             = func_desc@[8];
+            if (func_sym_id < ctx@[5]) [
+                func_by_sym@[func_sym_id] = func_desc;
+            ]
+            func_count = func_count + 1;
+        ] else [
+            if (tok_type == 8) [
+                parse_extern!(ctx, ext_cnt, func_by_sym);
+            ] else [
+                if (tok_type == 4) [
+                    parse_const_decl!(ctx);
+                ] else [
+                    sys_exit!(6);
+                ]
+            ]
+        ]
+    ]
+
+    sys_exit!(98);
+]

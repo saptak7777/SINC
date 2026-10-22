@@ -1,0 +1,16 @@
+// EXPECT: 32
+// REQUIRE_INSN: zmm
+// Test: Two consecutive 32-iteration AVX-512 loop reductions in the same function
+fn main() [
+    total1 = 0;
+    loop (i:32 = 0 .. 32) [
+        a = (i & 7) + 1;
+        total1 = total1 + a;
+    ]
+    total2 = 0;
+    loop (j:32 = 0 .. 32) [
+        b = (j & 7) + 1;
+        total2 = total2 + b;
+    ]
+    ret (total1 - total2 + 32) & 255;
+]

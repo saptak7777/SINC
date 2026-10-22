@@ -1,0 +1,12 @@
+// EXPECT: 42
+// Test: Copying a refined index preserves its interval bound
+extern fn mmap!();
+
+fn main!() [
+    buf:10 = mmap!(0, 4096, 3, 34, -1, 0);
+    i:10 = 5;
+    j = i;
+    buf@[5] = 42;
+    val = buf@[j];
+    ret val;
+]

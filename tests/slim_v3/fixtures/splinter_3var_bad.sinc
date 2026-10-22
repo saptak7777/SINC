@@ -1,0 +1,8 @@
+// fixture: splinter_3var_bad.sinc — true splintered state across 3 variables
+fn main(ctx@) [
+    rex_w = 0;
+    rex_r = 0;
+    rex_b = 0;
+    ctx@[0] = rex_w + rex_r + rex_b;
+    ret ctx@[0];
+]

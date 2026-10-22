@@ -1,0 +1,13 @@
+// COMPILE_ERROR: 15
+// Negative rejection test: negative constant does not forge refinement interval.
+// buf:10 indexing with an unrefined negative constant must be rejected or panic at runtime.
+
+fn test_negative_index_rejected() [
+    buf:10 = 0;
+    neg = -1;
+    ret buf@[neg];
+]
+
+fn main() [
+    ret test_negative_index_rejected();
+]

@@ -1,0 +1,12 @@
+// EXPECT: 100
+// Test: Direct memory allocation via mmap and indexed buffer load/store
+extern fn mmap!();
+
+fn main!() [
+    buf = mmap!(0, 4096, 3, 34, -1, 0);
+    buf@[0] = 42;
+    buf@[1] = 58;
+    v0 = buf@[0];
+    v1 = buf@[1];
+    ret v0 + v1;
+]

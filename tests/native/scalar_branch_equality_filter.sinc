@@ -1,0 +1,16 @@
+// EXPECT: 77
+// Test: Equality comparison and filtering via scalar branches
+fn count_matches(val, target) [
+    if (val == target) [
+        ret 1;
+    ]
+    ret 0;
+]
+
+fn main() [
+    m1 = count_matches(65, 65); // 1
+    m2 = count_matches(66, 65); // 0
+    m3 = count_matches(76, 76); // 1
+    total = (m1 * 50) + (m2 * 10) + (m3 * 27);
+    ret total; // 50 + 27 = 77
+]

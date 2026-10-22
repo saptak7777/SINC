@@ -1,0 +1,25 @@
+// EXPECT: 55
+// Test: Variable live across runtime hardware division must not be clobbered
+fn helper_dynamic(val) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + val;
+    ]
+    ret sum;
+]
+
+fn compute_div(a, b, c) [
+    if (c == 0) [
+        ret 0;
+    ]
+    x = a + b;
+    d = 100 / c;
+    ret x + d;
+]
+
+fn main() [
+    a = helper_dynamic(10);
+    b = helper_dynamic(25);
+    c = helper_dynamic(5);
+    ret compute_div(a, b, c);
+]

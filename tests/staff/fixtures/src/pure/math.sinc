@@ -1,0 +1,4 @@
+// tests/staff/fixtures/src/pure/math.sinc
+fn add_with_base(val) [
+    ret val + BASE_OFFSET;
+]

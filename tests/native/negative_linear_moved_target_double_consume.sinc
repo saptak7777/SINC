@@ -1,0 +1,9 @@
+// COMPILE_ERROR: 8
+// Test: Target of a linear move is linear and cannot be consumed twice
+fn main!() [
+    packet:8 = 10;
+    p = packet;
+    a = p;
+    b = p;
+    ret a + b;
+]

@@ -1,0 +1,68 @@
+// EXPECT: 185
+// Full Pipeline Chain Test: Tests end-to-end correctness across all compiler passes:
+// Inlining -> Simplify -> Unroll -> Loops (LICM) -> Vectorizer -> ERLS -> DCE -> Allocator -> x86_64 Codegen
+
+// 1. Inlined pure leaf calculation with distinct constants (tests inliner & def_map isolation)
+fn calc_pure(x, y) [
+    c1 = 17;
+    c2 = 23;
+    ret x * c1 + y * c2;
+]
+
+// 2. Loop with invariant arithmetic (tests LICM hoisting & tape rebuild)
+fn test_licm(n, inv_a, inv_b) [
+    sum = 0;
+    loop (i:100 = 0 .. n) [
+        // inv_math is loop-invariant: should be hoisted by loops.sinc
+        inv_math = inv_a * 3 + inv_b * 7;
+        sum = sum + i + inv_math;
+    ]
+    ret sum;
+]
+
+// 3. Diamond if-else conditional update (tests ERLS flattening to CMOV select)
+fn test_erls_select(flag, val_a, val_b) [
+    result = val_b;
+    if (flag > 10) [
+        result = val_a + 5;
+    ]
+    ret result;
+]
+
+// 4. Small constant trip count loop (tests unroll.sinc constant unrolling)
+fn test_unroll() [
+    total = 0;
+    loop (k:8 = 0 .. 8) [
+        total = total + k;
+    ]
+    ret total; // 0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 = 28
+]
+
+// 5. Main coordinator: exercises multiple functions, verifying no cross-function def_map clobbering
+fn main() [
+    // calc_pure(2, 3) = 2*17 + 3*23 = 34 + 69 = 103
+    p1 = calc_pure(2, 3);
+
+    // test_licm(4, 2, 1) -> loop runs 4 times (i = 0, 1, 2, 3)
+    // inv_math = 2*3 + 1*7 = 13.
+    // sum = (0+13) + (1+13) + (2+13) + (3+13) = 6 + 52 = 58
+    p2 = test_licm(4, 2, 1);
+
+    // test_erls_select(15, 10, 50) -> flag 15 > 10, result = 10 + 5 = 15
+    p3 = test_erls_select(15, 10, 50);
+
+    // test_erls_select(5, 10, 50) -> flag 5 <= 10, result = 50 (else branch)
+    p4 = test_erls_select(5, 10, 50);
+
+    // test_unroll() = 28
+    p5 = test_unroll();
+
+    // Dead code that DCE should eliminate completely
+    dead_val = p1 * 9999 + p2 * 8888;
+    dead_unused = dead_val ^ 12345;
+
+    // Aggregate checksum calculation:
+    // (103 - 58) + (15 - 50) + 28 = 45 - 35 + 28 = 38
+    // To make a distinct final test value: 38 + 147 = 185
+    ret (p1 - p2) + (p3 - p4) + p5 + 147;
+]

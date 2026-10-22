@@ -1,0 +1,10 @@
+fn fib_fast() [
+    a = 0;
+    b = 1;
+    loop (i:100 = 0 .. 40) [
+        tmp = a + b;
+        a = b;
+        b = tmp;
+    ]
+    ret a;
+]

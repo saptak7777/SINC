@@ -1,0 +1,545 @@
+// ==========================================
+// slim/pure/tape_scanner.sinc
+// S.L.I.M. Pass 1 Tape Scanner
+// Global Symbol & Extern Registry Indexer
+// Pure text algorithms: zero '!', zero syscalls
+// ==========================================
+
+const MAX_GLOBAL_FUNCS   = 2048;
+const FUNC_REC_WORDS     = 7;
+const FUNC_REC_PTR       = 0;
+const FUNC_REC_LEN       = 1;
+const FUNC_REC_FILE      = 2;
+const FUNC_REC_LINE      = 3;
+const FUNC_REC_START     = 4;
+const FUNC_REC_END       = 5;
+const FUNC_REC_CALLED    = 6;
+
+const MAX_GLOBAL_EXTERNS = 256;
+const EXT_REC_WORDS      = 2;
+const EXT_REC_PTR        = 0;
+const EXT_REC_LEN        = 1;
+
+fn slim_is_ident_char(ch) [
+    if ((!(ch < 97)) & (ch < 123)) [
+        ret 1;
+    ]
+    if ((!(ch < 65)) & (ch < 91)) [
+        ret 1;
+    ]
+    if ((!(ch < 48)) & (ch < 58)) [
+        ret 1;
+    ]
+    if ((ch == 95) | (ch == 33) | (ch == 126)) [
+        ret 1;
+    ]
+    ret 0;
+]
+
+fn slim_is_ident_start(ch) [
+    if ((!(ch < 97)) & (ch < 123)) [
+        ret 1;
+    ]
+    if ((!(ch < 65)) & (ch < 91)) [
+        ret 1;
+    ]
+    if (ch == 95) [
+        ret 1;
+    ]
+    ret 0;
+]
+
+fn slim_names_match(ptr_a, len_a, ptr_b, len_b) [
+    if (len_a != len_b) [
+        ret 0;
+    ]
+    loop (k:256 = 0 .. len_a) [
+        ca = ptr_a@[k * 1];
+        cb = ptr_b@[k * 1];
+        if (ca != cb) [
+            ret 0;
+        ]
+    ]
+    ret 1;
+]
+
+fn slim_common_prefix_len(ptr_a, len_a, ptr_b, len_b) [
+    min_len = len_a;
+    if (len_b < min_len) [
+        min_len = len_b;
+    ]
+    p_len = 0;
+    loop (k:64 = 0 .. min_len) [
+        if (ptr_a@[k * 1] == ptr_b@[k * 1]) [
+            p_len = p_len + 1;
+        ] else [
+            ret p_len;
+        ]
+    ]
+    ret p_len;
+]
+
+fn slim_slice_role(ptr, len) [
+    if (len > 3) [
+        idx0 = len - 4;
+        idx1 = len - 3;
+        idx2 = len - 2;
+        idx3 = len - 1;
+        c0 = ptr@[idx0 * 1];
+        c1 = ptr@[idx1 * 1];
+        c2 = ptr@[idx2 * 1];
+        c3 = ptr@[idx3 * 1];
+        if ((c0 == 95) & (c1 == 112) & (c2 == 116) & (c3 == 114)) [
+            ret 1;
+        ]
+        if ((c0 == 95) & (c1 == 108) & (c2 == 101) & (c3 == 110)) [
+            ret 2;
+        ]
+        if ((c0 == 95) & (c1 == 101) & (c2 == 110) & (c3 == 100)) [
+            ret 2;
+        ]
+        if ((c0 == 95) & (c1 == 99) & (c2 == 97) & (c3 == 112)) [
+            ret 2;
+        ]
+    ]
+    if (len == 3) [
+        c0 = ptr@[0 * 1];
+        c1 = ptr@[1 * 1];
+        c2 = ptr@[2 * 1];
+        if ((c0 == 112) & (c1 == 116) & (c2 == 114)) [
+            ret 1;
+        ]
+        if ((c0 == 108) & (c1 == 101) & (c2 == 110)) [
+            ret 2;
+        ]
+        if ((c0 == 101) & (c1 == 110) & (c2 == 100)) [
+            ret 2;
+        ]
+        if ((c0 == 99) & (c1 == 97) & (c2 == 112)) [
+            ret 2;
+        ]
+    ]
+    if (len > 4) [
+        idx0 = len - 5;
+        idx1 = len - 4;
+        idx2 = len - 3;
+        idx3 = len - 2;
+        idx4 = len - 1;
+        c0 = ptr@[idx0 * 1];
+        c1 = ptr@[idx1 * 1];
+        c2 = ptr@[idx2 * 1];
+        c3 = ptr@[idx3 * 1];
+        c4 = ptr@[idx4 * 1];
+        if ((c0 == 95) & (c1 == 98) & (c2 == 97) & (c3 == 115) & (c4 == 101)) [
+            ret 1;
+        ]
+        if ((c0 == 95) & (c1 == 115) & (c2 == 105) & (c3 == 122) & (c4 == 101)) [
+            ret 2;
+        ]
+    ]
+    if (len > 5) [
+        idx0 = len - 6;
+        idx1 = len - 5;
+        idx2 = len - 4;
+        idx3 = len - 3;
+        idx4 = len - 2;
+        idx5 = len - 1;
+        c0 = ptr@[idx0 * 1];
+        c1 = ptr@[idx1 * 1];
+        c2 = ptr@[idx2 * 1];
+        c3 = ptr@[idx3 * 1];
+        c4 = ptr@[idx4 * 1];
+        c5 = ptr@[idx5 * 1];
+        if ((c0 == 95) & (c1 == 115) & (c2 == 116) & (c3 == 97) & (c4 == 114) & (c5 == 116)) [
+            ret 1;
+        ]
+        if ((c0 == 95) & (c1 == 99) & (c2 == 111) & (c3 == 117) & (c4 == 110) & (c5 == 116)) [
+            ret 2;
+        ]
+    ]
+    ret 0;
+]
+
+fn slim_is_slice_pair(ptr_a, len_a, ptr_b, len_b) [
+    role_a = slim_slice_role(ptr_a, len_a);
+    role_b = slim_slice_role(ptr_b, len_b);
+    if ((role_a == 1) & (role_b == 2)) [
+        ret 1;
+    ]
+    if ((role_a == 2) & (role_b == 1)) [
+        ret 1;
+    ]
+    ret 0;
+]
+
+fn slim_is_entrypoint(name_ptr, name_len) [
+    if (name_len == 4) [
+        if ((name_ptr@[0 * 1] == 109) & (name_ptr@[1 * 1] == 97) & (name_ptr@[2 * 1] == 105) & (name_ptr@[3 * 1] == 110)) [
+            ret 1;
+        ]
+    ]
+    if (name_len == 5) [
+        if ((name_ptr@[0 * 1] == 109) & (name_ptr@[1 * 1] == 97) & (name_ptr@[2 * 1] == 105) & (name_ptr@[3 * 1] == 110) & (name_ptr@[4 * 1] == 33)) [
+            ret 1;
+        ]
+    ]
+    if (name_len == 12) [
+        if ((name_ptr@[0 * 1] == 99) & (name_ptr@[1 * 1] == 111) & (name_ptr@[2 * 1] == 109) & (name_ptr@[3 * 1] == 112) & (name_ptr@[4 * 1] == 105) & (name_ptr@[5 * 1] == 108) & (name_ptr@[6 * 1] == 101) & (name_ptr@[7 * 1] == 95) & (name_ptr@[8 * 1] == 99) & (name_ptr@[9 * 1] == 111) & (name_ptr@[10 * 1] == 114) & (name_ptr@[11 * 1] == 101)) [
+            ret 1;
+        ]
+    ]
+    if (name_len == 13) [
+        if ((name_ptr@[0 * 1] == 99) & (name_ptr@[1 * 1] == 111) & (name_ptr@[2 * 1] == 109) & (name_ptr@[3 * 1] == 112) & (name_ptr@[4 * 1] == 105) & (name_ptr@[5 * 1] == 108) & (name_ptr@[6 * 1] == 101) & (name_ptr@[7 * 1] == 95) & (name_ptr@[8 * 1] == 99) & (name_ptr@[9 * 1] == 111) & (name_ptr@[10 * 1] == 114) & (name_ptr@[11 * 1] == 101) & (name_ptr@[12 * 1] == 33)) [
+            ret 1;
+        ]
+    ]
+    if (name_len == 6) [
+        if ((name_ptr@[0 * 1] == 95) & (name_ptr@[1 * 1] == 115) & (name_ptr@[2 * 1] == 116) & (name_ptr@[3 * 1] == 97) & (name_ptr@[4 * 1] == 114) & (name_ptr@[5 * 1] == 116)) [
+            ret 1;
+        ]
+    ]
+    ret 0;
+]
+
+fn slim_is_extern(extern_table, extern_count, name_ptr, name_len) [
+    if (extern_count == 0) [
+        ret 0;
+    ]
+    loop (ei:256 = 0 .. extern_count) [
+        eoff = ei * EXT_REC_WORDS;
+        e_ptr = extern_table@[(eoff + EXT_REC_PTR)];
+        e_len = extern_table@[(eoff + EXT_REC_LEN)];
+        if (slim_names_match(e_ptr, e_len, name_ptr, name_len) == 1) [
+            ret 1;
+        ]
+    ]
+    ret 0;
+]
+
+fn slim_scan_tape!(arena, src_tape, tape_len, diag_buf, sym_reg) [
+    func_table   = arena_alloc_words!(arena, MAX_GLOBAL_FUNCS * FUNC_REC_WORDS);
+    extern_table = arena_alloc_words!(arena, MAX_GLOBAL_EXTERNS * EXT_REC_WORDS);
+    func_count   = 0;
+    extern_count = 0;
+
+    file_table = diag_buf@[450];
+    file_count = diag_buf@[451];
+    curr_file  = 0;
+    curr_line  = 1;
+
+    i = 0;
+    loop (step:10000000 = 0 .. tape_len) [
+        if (i < tape_len) [
+            ch = src_tape@[i * 1];
+            if (ch == 10) [
+                curr_line = curr_line + 1;
+            ]
+
+            if ((file_count > 1) & (file_table != 0)) [
+                f_end_idx = (curr_file * 4) + 3;
+                f_end = file_table@[f_end_idx];
+                if ((!(i < f_end)) & ((curr_file + 1) < file_count)) [
+                    curr_file = curr_file + 1;
+                    curr_line = 1;
+                ]
+            ]
+
+            // Skip single-line comments
+            if ((ch == 47) & ((i + 1) < tape_len)) [
+                if (src_tape@[(i + 1) * 1] == 47) [
+                    sc_active = 1;
+                    loop (sc:1000000 = 0 .. tape_len) [
+                        if (sc_active == 1) [
+                            if (i < tape_len) [
+                                if (src_tape@[i * 1] == 10) [
+                                    curr_line = curr_line + 1;
+                                    sc_active = 0;
+                                ] else [
+                                    i = i + 1;
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+
+            // Check for 'fn ' (102, 110, 32)
+            if ((ch == 102) & ((i + 2) < tape_len)) [
+                if ((src_tape@[(i + 1) * 1] == 110) & (src_tape@[(i + 2) * 1] == 32)) [
+                    is_boundary = 1;
+                    if (i > 0) [
+                        prev = src_tape@[(i - 1) * 1];
+                        if (slim_is_ident_char(prev) == 1) [
+                            is_boundary = 0;
+                        ]
+                    ]
+
+                    if (is_boundary == 1) [
+                        is_extern = 0;
+                        if (i > 6) [
+                            if ((src_tape@[(i - 7) * 1] == 101) & (src_tape@[(i - 6) * 1] == 120) & (src_tape@[(i - 5) * 1] == 116) & (src_tape@[(i - 4) * 1] == 101) & (src_tape@[(i - 3) * 1] == 114) & (src_tape@[(i - 2) * 1] == 110) & (src_tape@[(i - 1) * 1] == 32)) [
+                                is_extern = 1;
+                            ]
+                        ]
+
+                        fn_name_ptr = src_tape + (i + 3);
+                        fn_name_len = 0;
+                        scan_pos = i + 3;
+                        k_active = 1;
+                        loop (k:128 = 0 .. 128) [
+                            if (k_active == 1) [
+                                if (scan_pos < tape_len) [
+                                    name_ch = src_tape@[scan_pos * 1];
+                                    if (slim_is_ident_char(name_ch) == 1) [
+                                        fn_name_len = fn_name_len + 1;
+                                        scan_pos = scan_pos + 1;
+                                    ] else [
+                                        k_active = 0;
+                                    ]
+                                ]
+                            ]
+                        ]
+
+                        if (fn_name_len > 0) [
+                            if (is_extern == 1) [
+                                if (extern_count < MAX_GLOBAL_EXTERNS) [
+                                    eoff = extern_count * EXT_REC_WORDS;
+                                    extern_table@[(eoff + EXT_REC_PTR)] = fn_name_ptr;
+                                    extern_table@[(eoff + EXT_REC_LEN)] = fn_name_len;
+                                    extern_count = extern_count + 1;
+                                ]
+                            ] else [
+                                if (func_count < MAX_GLOBAL_FUNCS) [
+                                    // Locate function body opening bracket '['
+                                    to_b = 1;
+                                    b_pos = scan_pos;
+                                    loop (tb:128 = 0 .. 128) [
+                                        if (to_b == 1) [
+                                            if (b_pos < tape_len) [
+                                                if (src_tape@[b_pos * 1] == 91) [
+                                                    to_b = 0;
+                                                ] else [
+                                                    b_pos = b_pos + 1;
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+
+                                    fn_body_start = b_pos + 1;
+                                    fn_body_end   = fn_body_start;
+
+                                    if (to_b == 0) [
+                                        m_depth = 1;
+                                        m_cur   = fn_body_start;
+                                        loop (mb:500000 = 0 .. 500000) [
+                                            if ((m_depth > 0) & (m_cur < tape_len)) [
+                                                mch = src_tape@[m_cur * 1];
+                                                if ((mch == 47) & ((m_cur + 1) < tape_len)) [
+                                                    if (src_tape@[(m_cur + 1) * 1] == 47) [
+                                                        sc_m = 1;
+                                                        loop (sck:10000 = 0 .. 10000) [
+                                                            if (sc_m == 1) [
+                                                                if (m_cur < tape_len) [
+                                                                    if (src_tape@[m_cur * 1] == 10) [
+                                                                        sc_m = 0;
+                                                                    ] else [
+                                                                        m_cur = m_cur + 1;
+                                                                    ]
+                                                                ]
+                                                            ]
+                                                        ]
+                                                    ]
+                                                ]
+                                                if (mch == 91) [
+                                                    m_depth = m_depth + 1;
+                                                ]
+                                                if (mch == 93) [
+                                                    m_depth = m_depth - 1;
+                                                ]
+                                                if (m_depth > 0) [
+                                                    m_cur = m_cur + 1;
+                                                ]
+                                            ]
+                                        ]
+                                        fn_body_end = m_cur;
+                                    ]
+
+                                    rec_off = func_count * FUNC_REC_WORDS;
+                                    func_table@[(rec_off + FUNC_REC_PTR)]   = fn_name_ptr;
+                                    func_table@[(rec_off + FUNC_REC_LEN)]   = fn_name_len;
+                                    func_table@[(rec_off + FUNC_REC_FILE)]  = curr_file;
+                                    func_table@[(rec_off + FUNC_REC_LINE)]  = curr_line;
+                                    func_table@[(rec_off + FUNC_REC_START)] = fn_body_start;
+                                    func_table@[(rec_off + FUNC_REC_END)]   = fn_body_end;
+                                    is_entry = slim_is_entrypoint(fn_name_ptr, fn_name_len);
+                                    func_table@[(rec_off + FUNC_REC_CALLED)] = is_entry;
+                                    func_count = func_count + 1;
+                                ]
+                            ]
+                            i = scan_pos;
+                        ]
+                    ]
+                ]
+            ]
+
+            i = i + 1;
+        ]
+    ]
+
+    sym_reg@[0] = func_table;
+    sym_reg@[1] = func_count;
+    sym_reg@[2] = extern_table;
+    sym_reg@[3] = extern_count;
+    ret func_count;
+]
+
+fn slim_resolve_reachability!(src_tape, sym_reg) [
+    func_table = sym_reg@[0];
+    func_count = sym_reg@[1];
+
+    if (func_count == 0) [
+        ret 0;
+    ]
+
+    has_entry = 0;
+    loop (ei:2048 = 0 .. func_count) [
+        eoff = ei * FUNC_REC_WORDS;
+        fn_ptr = func_table@[(eoff + FUNC_REC_PTR)];
+        fn_len = func_table@[(eoff + FUNC_REC_LEN)];
+        is_ent = slim_is_entrypoint(fn_ptr, fn_len);
+        if (is_ent == 1) [
+            has_entry = 1;
+        ]
+    ]
+
+    if (has_entry == 0) [
+        ret 0;
+    ]
+
+    // Reset reachability: only root entrypoints start reachable
+    loop (ri:2048 = 0 .. func_count) [
+        roff = ri * FUNC_REC_WORDS;
+        fn_ptr = func_table@[(roff + FUNC_REC_PTR)];
+        fn_len = func_table@[(roff + FUNC_REC_LEN)];
+        is_ent = slim_is_entrypoint(fn_ptr, fn_len);
+        func_table@[(roff + FUNC_REC_CALLED)] = is_ent;
+    ]
+
+    changed = 1;
+    loop (round:64 = 0 .. 64) [
+        if (changed == 1) [
+            changed = 0;
+            loop (fi:2048 = 0 .. func_count) [
+                foff = fi * FUNC_REC_WORDS;
+                if (func_table@[(foff + FUNC_REC_CALLED)] == 1) [
+                    b_start = func_table@[(foff + FUNC_REC_START)];
+                    b_end   = func_table@[(foff + FUNC_REC_END)];
+                    b_len   = b_end - b_start;
+                    if (b_len > 0) [
+                        bi = b_start;
+                        loop (b_step:100000 = 0 .. b_len) [
+                            if (bi < b_end) [
+                                bch = src_tape@[bi * 1];
+
+                                if ((bch == 47) & ((bi + 1) < b_end)) [
+                                    if (src_tape@[(bi + 1) * 1] == 47) [
+                                        sc_act = 1;
+                                        loop (sck:10000 = 0 .. b_len) [
+                                            if (sc_act == 1) [
+                                                if (bi < b_end) [
+                                                    if (src_tape@[bi * 1] == 10) [
+                                                        sc_act = 0;
+                                                    ] else [
+                                                        bi = bi + 1;
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+
+                                if (slim_is_ident_char(bch) == 1) [
+                                    id_ptr = src_tape + bi;
+                                    id_len = 0;
+                                    ida = 1;
+                                    loop (idl:64 = 0 .. 64) [
+                                        if (ida == 1) [
+                                            if ((bi + idl) < b_end) [
+                                                idc = src_tape@[(bi + idl) * 1];
+                                                if (slim_is_ident_char(idc) == 1) [
+                                                    id_len = id_len + 1;
+                                                ] else [
+                                                    ida = 0;
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+
+                                    after_id = bi + id_len;
+                                    is_call = 0;
+                                    if (after_id < b_end) [
+                                        if (src_tape@[after_id * 1] == 40) [
+                                            is_call = 1;
+                                        ]
+                                        if ((src_tape@[after_id * 1] == 33) & ((after_id + 1) < b_end)) [
+                                            if (src_tape@[(after_id + 1) * 1] == 40) [
+                                                is_call = 1;
+                                            ]
+                                        ]
+                                    ]
+
+                                    if (is_call == 1) [
+                                        loop (ti:2048 = 0 .. func_count) [
+                                            toff = ti * FUNC_REC_WORDS;
+                                            t_ptr = func_table@[(toff + FUNC_REC_PTR)];
+                                            t_len = func_table@[(toff + FUNC_REC_LEN)];
+                                            if (slim_names_match(t_ptr, t_len, id_ptr, id_len) == 1) [
+                                                if (func_table@[(toff + FUNC_REC_CALLED)] == 0) [
+                                                    func_table@[(toff + FUNC_REC_CALLED)] = 1;
+                                                    changed = 1;
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+
+                                    bi = bi + id_len;
+                                ] else [
+                                    bi = bi + 1;
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+    ret 0;
+]
+
+fn slim_flush_dead_weight!(diag_buf, sym_reg) [
+    violations = 0;
+    func_table = sym_reg@[0];
+    func_count = sym_reg@[1];
+
+    if (func_count == 0) [
+        ret 0;
+    ]
+
+    loop (fi:2048 = 0 .. func_count) [
+        foff = fi * FUNC_REC_WORDS;
+        is_called = func_table@[(foff + FUNC_REC_CALLED)];
+        if (is_called == 0) [
+            fn_ptr  = func_table@[(foff + FUNC_REC_PTR)];
+            fn_len  = func_table@[(foff + FUNC_REC_LEN)];
+            fn_file = func_table@[(foff + FUNC_REC_FILE)];
+            fn_line = func_table@[(foff + FUNC_REC_LINE)];
+
+            diag_buf@[452] = fn_file;
+            diag_emit_tag!(diag_buf, TAG_DEAD_WEIGHT, fn_line, fn_ptr, fn_len);
+            violations = violations + 1;
+        ]
+    ]
+
+    ret violations;
+]

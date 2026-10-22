@@ -1,0 +1,17 @@
+// EXPECT: 151
+// Test: Phase 5 LICM — Inlined pure function hoisted from loop
+fn pure_poly(x, y) [
+    ret (x * 13) + (y * 7) + 5;
+]
+
+fn main() [
+    a = 4;
+    b = 8;
+    sum = 0;
+    loop (i:10 = 0 .. 10) [
+        // pure_poly(a, b) is inlined by ir_inline! then hoisted by ir_loops!
+        p = pure_poly(a, b);
+        sum = sum + p + i;
+    ]
+    ret sum & 255;
+]

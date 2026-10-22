@@ -1,0 +1,10 @@
+// fixture: overwrite_bad.sinc — dead overwrite
+fn calc(a) [
+    ret a * 2;
+]
+
+fn main() [
+    x = calc(10);
+    x = 42;
+    ret x;
+]

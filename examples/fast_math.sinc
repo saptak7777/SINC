@@ -1,0 +1,10 @@
+// examples/fast_math.sinc
+// Simple numeric loop to demonstrate C FFI linking
+
+fn sinc_math() [
+    sum = 0;
+    loop (i:10000 = 0 .. 10000) [
+        sum = sum + i;
+    ]
+    ret sum;
+]

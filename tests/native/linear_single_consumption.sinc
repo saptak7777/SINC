@@ -1,0 +1,16 @@
+// EXPECT: 42
+// REQUIRE_INSN: add
+// Test: Linear variable single consumption lifecycle
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn main!() [
+    packet~ = helper(10);
+    a = packet~;
+    ret a + 32;
+]

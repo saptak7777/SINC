@@ -1,0 +1,5 @@
+// fixture: fossil_bad.sinc — triggers [FOSSIL] self-assignment
+fn main(x, y) [
+    x = x;
+    ret y;
+]

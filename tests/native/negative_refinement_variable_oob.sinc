@@ -1,0 +1,8 @@
+// COMPILE_ERROR: 15
+// Test: Compile-time rejection when variable index bound exceeds buffer capacity
+fn main() [
+    buf:16 = 0;
+    idx:32 = 20;
+    val = buf@[idx];
+    ret val;
+]

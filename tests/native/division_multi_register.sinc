@@ -1,0 +1,21 @@
+// EXPECT: 10
+// Test: Scalar division where divisor is resident in non-rcx physical register
+fn divide3(a, b, c) [
+    ret a / c;
+]
+
+fn main() [
+    x = 0;
+    loop (i = 0 .. 100) [
+        x = x + 1;
+    ]
+    y = 0;
+    loop (j = 0 .. 2) [
+        y = y + 1;
+    ]
+    z = 0;
+    loop (k = 0 .. 10) [
+        z = z + 1;
+    ]
+    ret divide3(x, y, z);
+]

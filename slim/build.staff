@@ -1,0 +1,14 @@
+// ==========================================
+// slim/build.staff
+// S.L.I.M. Linter & Inspection Module Manifest
+// ==========================================
+
+artifact slim [
+]
+
+deps [
+    steel/sys/sys.sinc;
+    steel/sys/arena.sinc;
+    steel/sys/stream.sinc;
+    steel/sys/os_linux.sinc;
+]

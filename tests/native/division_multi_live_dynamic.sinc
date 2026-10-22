@@ -1,0 +1,32 @@
+// EXPECT: 87
+// REQUIRE_INSN: idiv
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn compute_multi(a, b, c, d, e, denom) [
+    if (denom == 0) [
+        ret 0;
+    ]
+    v1 = a + 1;
+    v2 = b + 2;
+    v3 = c + 3;
+    v4 = d + 4;
+    v5 = e + 5;
+    q = 120 / denom;
+    ret (v1 + v2 + v3 + v4 + v5) + q;
+]
+
+fn main() [
+    a = helper(10);
+    b = helper(20);
+    c = helper(5);
+    d = helper(15);
+    e = helper(2);
+    denom = helper(6);
+    ret compute_multi(a, b, c, d, e, denom);
+]

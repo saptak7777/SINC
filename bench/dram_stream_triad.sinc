@@ -1,0 +1,20 @@
+extern fn mmap!();
+
+fn bench_dram_stream!() [
+    arena = mmap!(0, 16777216, 3, 34, -1, 0);
+    a = arena;
+    b = arena + 8388608;
+
+    loop (i:1048576 = 0 .. 1048576) [
+        a@[i * 8] = 1;
+        b@[i * 8] = 2;
+    ]
+
+    loop (step:20 = 0 .. 20) [
+        loop (i:1048576 = 0 .. 1048576) [
+            a@[i * 8] = a@[i * 8] + b@[i * 8] * 3;
+        ]
+    ]
+
+    ret a@[0] & 255;
+]

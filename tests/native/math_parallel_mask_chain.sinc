@@ -1,0 +1,12 @@
+// EXPECT: 86
+// Test: Parallel bitwise masking chain from single loop variable
+fn main() [
+    total = 0;
+    loop (i:100 = 0 .. 100) [
+        m1 = i & 1;
+        m2 = i & 2;
+        m3 = i & 4;
+        total = total + m1 + m2 + m3;
+    ]
+    ret total & 255;
+]

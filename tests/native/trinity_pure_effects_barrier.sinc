@@ -1,0 +1,17 @@
+// EXPECT: 99
+// Test: Pure function calls and local register isolation
+fn pure_square(n) [
+    ret n * n;
+]
+
+fn pure_accumulate(a, b, c) [
+    s1 = pure_square(a);
+    s2 = pure_square(b);
+    s3 = pure_square(c);
+    ret s1 + s2 + s3;
+]
+
+fn main() [
+    res = pure_accumulate(7, 5, 5);
+    ret res;
+]

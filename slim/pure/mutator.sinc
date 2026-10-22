@@ -1,0 +1,145 @@
+// ==========================================
+// slim/pure/mutator.sinc
+// S.L.I.M. Bytecode Mutation Testing Engine
+// Enforces [TAG: WEAK TEST]
+// 100% Core-Compiler Blind — Built purely with STEEL Standard Library
+// ==========================================
+
+fn slim_mutate_safe!(arena, in_path, out_path, target_mutant_idx) [
+    in_fd = sys_open_read!(in_path);
+    if (in_fd < 0) [ ret -1; ]
+
+    // Allocate 16MB for .safe file
+    hdr_buf = arena_alloc_words!(arena, 4);
+    h_bytes = sys_read!(in_fd, hdr_buf, 32);
+    if (h_bytes != 32) [
+        sys_close!(in_fd);
+        ret -2;
+    ]
+
+    code_len = hdr_buf@[1];
+    code_buf = arena_alloc_words!(arena, ((code_len + 7) >> 3) + 1);
+    c_bytes = sys_read!(in_fd, code_buf, code_len);
+    sys_close!(in_fd);
+
+    if (c_bytes != code_len) [ ret -3; ]
+
+    // Scan and mutate target opcode
+    mutant_count = 0;
+    mutated = 0;
+    loop (i:10000000 = 0 .. code_len) [
+        b = code_buf@[i * 1];
+        mutated_b = b;
+
+        // 1. ADD <-> SUB (0x01 <-> 0x29)
+        if (b == 1) [
+            mutated_b = 41;
+        ]
+        if (b == 41) [
+            mutated_b = 1;
+        ]
+
+        // 2. ADD <-> SUB (0x03 <-> 0x2B)
+        if (b == 3) [
+            mutated_b = 43;
+        ]
+        if (b == 43) [
+            mutated_b = 3;
+        ]
+
+        // 3. Near Jcc after 0x0F (JE <-> JNE, JL <-> JGE, JLE <-> JG)
+        if (i > 0) [
+            if (code_buf@[(i - 1) * 1] == 15) [
+                if (b == 132) [
+                    mutated_b = 133;
+                ]
+                if (b == 133) [
+                    mutated_b = 132;
+                ]
+                if (b == 140) [
+                    mutated_b = 141;
+                ]
+                if (b == 141) [
+                    mutated_b = 140;
+                ]
+                if (b == 142) [
+                    mutated_b = 143;
+                ]
+                if (b == 143) [
+                    mutated_b = 142;
+                ]
+            ]
+        ]
+
+        if (mutated_b != b) [
+            if (mutant_count == target_mutant_idx) [
+                if (mutated == 0) [
+                    code_buf@[i * 1] = mutated_b;
+                    mutated = 1;
+                ]
+            ]
+            mutant_count = mutant_count + 1;
+        ]
+    ]
+
+    if (mutated == 0) [ ret 0; ]
+
+    // Write mutated output .safe
+    out_fd = sys_open_write!(out_path);
+    if (out_fd < 0) [ ret -4; ]
+
+    w_hdr = sys_write!(out_fd, hdr_buf, 32);
+    w_code = sys_write!(out_fd, code_buf, code_len);
+    sys_close!(out_fd);
+
+    if ((w_hdr != 32) | (w_code != code_len)) [ ret -5; ]
+    ret mutant_count;
+]
+
+fn slim_eval_mutant_result!(diag_buf, test_exit_code, name_ptr, name_len) [
+    if (test_exit_code == 0) [
+        diag_emit_tag!(diag_buf, TAG_WEAK_TEST, 0, name_ptr, name_len);
+        ret 1;
+    ]
+    off_ptr = diag_buf + 3500;
+    off_ptr@[0] = 0;
+    // "[SLIM: PASS] Mutant killed by test assertion.\n"
+    diag_poke_ch!(diag_buf, off_ptr, 91);
+    diag_poke_ch!(diag_buf, off_ptr, 83);
+    diag_poke_ch!(diag_buf, off_ptr, 76);
+    diag_poke_ch!(diag_buf, off_ptr, 73);
+    diag_poke_ch!(diag_buf, off_ptr, 77);
+    diag_poke_ch!(diag_buf, off_ptr, 58);
+    diag_poke_ch!(diag_buf, off_ptr, 32);
+    diag_poke_ch!(diag_buf, off_ptr, 80);
+    diag_poke_ch!(diag_buf, off_ptr, 65);
+    diag_poke_ch!(diag_buf, off_ptr, 83);
+    diag_poke_ch!(diag_buf, off_ptr, 83);
+    diag_poke_ch!(diag_buf, off_ptr, 93);
+    diag_poke_ch!(diag_buf, off_ptr, 32);
+    diag_poke_ch!(diag_buf, off_ptr, 77);
+    diag_poke_ch!(diag_buf, off_ptr, 117);
+    diag_poke_ch!(diag_buf, off_ptr, 116);
+    diag_poke_ch!(diag_buf, off_ptr, 97);
+    diag_poke_ch!(diag_buf, off_ptr, 110);
+    diag_poke_ch!(diag_buf, off_ptr, 116);
+    diag_poke_ch!(diag_buf, off_ptr, 32);
+    diag_poke_ch!(diag_buf, off_ptr, 107);
+    diag_poke_ch!(diag_buf, off_ptr, 105);
+    diag_poke_ch!(diag_buf, off_ptr, 108);
+    diag_poke_ch!(diag_buf, off_ptr, 108);
+    diag_poke_ch!(diag_buf, off_ptr, 101);
+    diag_poke_ch!(diag_buf, off_ptr, 100);
+    diag_poke_ch!(diag_buf, off_ptr, 32);
+    diag_poke_ch!(diag_buf, off_ptr, 98);
+    diag_poke_ch!(diag_buf, off_ptr, 121);
+    diag_poke_ch!(diag_buf, off_ptr, 32);
+    diag_poke_ch!(diag_buf, off_ptr, 116);
+    diag_poke_ch!(diag_buf, off_ptr, 101);
+    diag_poke_ch!(diag_buf, off_ptr, 115);
+    diag_poke_ch!(diag_buf, off_ptr, 116);
+    diag_poke_ch!(diag_buf, off_ptr, 46);
+    diag_poke_ch!(diag_buf, off_ptr, 10);
+    sys_write!(1, diag_buf, off_ptr@[0]);
+    ret 0;
+]

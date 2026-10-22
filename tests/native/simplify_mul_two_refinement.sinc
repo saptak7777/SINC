@@ -1,0 +1,12 @@
+// EXPECT: 42
+// Test: x * 2 rewriting to ADD x, x with immediate bounds and refinement interval integrity
+fn test_mul_two(x) [
+    m = x * 2;
+    res = m + 10;
+    m2 = res * 2;
+    ret m2 - 26;
+]
+
+fn main() [
+    ret test_mul_two(12);
+]

@@ -1,0 +1,24 @@
+// EXPECT: 65
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn compute_loop(n, initial_step) [
+    acc = 0;
+    step = initial_step;
+    loop (i:100 = 0 .. n) [
+        acc = acc + step;
+        step = step + 1;
+    ]
+    ret acc;
+]
+
+fn main() [
+    n = helper(10);
+    step = helper(2);
+    ret compute_loop(n, step);
+]

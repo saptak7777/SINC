@@ -1,0 +1,69 @@
+// ==========================================
+// steel/sys/sys.sinc
+// S.T.E.E.L. OS & Hardware Syscall Bridge
+// ==========================================
+
+extern fn mmap!();
+extern fn open!();
+extern fn read!();
+extern fn write!();
+extern fn close!();
+extern fn exit!();
+extern fn getdents!();
+extern fn get_argv!();
+extern fn ioctl!();
+
+// --- 1. Memory Backing ---
+fn sys_mmap!(size) [
+    ptr = mmap!(0, size, 3, 34, -1, 0);
+    ret ptr;
+]
+
+// --- 2. File Input/Output ---
+fn sys_open!(path, flags) [
+    fd = open!(path, flags);
+    ret fd;
+]
+
+fn sys_open_create!(path) [
+    fd = open!(path, 577);
+    ret fd;
+]
+
+fn sys_open_read!(path) [
+    fd = open!(path, 0);
+    ret fd;
+]
+
+fn sys_open_write!(path) [
+    fd = open!(path, 577);
+    ret fd;
+]
+
+fn sys_read!(fd, buf, size) [
+    bytes = read!(fd, buf, size);
+    ret bytes;
+]
+
+fn sys_write!(fd, buf, size) [
+    ret write!(fd, buf, size);
+]
+
+fn sys_close!(fd) [
+    close!(fd);
+    ret 0;
+]
+
+fn sys_getdents!(fd, dirp, count) [
+    ret getdents!(fd, dirp, count);
+]
+
+fn sys_ioctl!(fd, request, argp) [
+    ret ioctl!(fd, request, argp);
+]
+
+// --- 3. Process Control ---
+fn sys_exit!(code) [
+    exit!(code);
+    ret 0;
+]

@@ -1,0 +1,19 @@
+// EXPECT: 45
+// REQUIRE_INSN: add
+// Test: Associative constant combining across multiple addition terms
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn main() [
+    x = helper(10);
+    y = helper(20);
+    a = x + 3;
+    b = y + 5;
+    total = a + b + 7;
+    ret total & 255;
+]

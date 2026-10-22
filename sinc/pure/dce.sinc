@@ -1,0 +1,103 @@
+// ==========================================
+// sinc/pure/dce.sinc
+// SINC Compiler: Dead Code Elimination Pass
+// ==========================================
+
+fn dce_mark_inst_operands!(w0, w1, w2, call_table, regs_ptr) [
+    opcode = w0 & 255;
+    if ((opcode == 0) | (opcode == 1) | (opcode == 10)) [
+        ret 0;
+    ]
+    if (opcode == 3) [
+        word_idx = w2 * 3;
+        argc = call_table@[(word_idx + 1)] & 4294967295;
+        args_ptr = call_table@[(word_idx + 2)];
+        loop (j:10000000 = 0 .. argc) [
+            arg_reg = args_ptr@[j];
+            regs_ptr@[arg_reg] = 1;
+        ]
+        ret 0;
+    ]
+    s1 = w1 & 4294967295;
+    s2 = (w1 >> 32) & 4294967295;
+    regs_ptr@[s1] = 1;
+    if (s2 != 4294967295) [
+        if ((opcode == 2) | (opcode == 6) | (opcode == 7) | (((opcode == 4) | (opcode == 5)) & (((w0 >> 56) & 2) == 0))) [
+            regs_ptr@[s2] = 1;
+        ]
+    ]
+    if (opcode == 7) [
+        rhs_val = (w0 >> 16) & 65535;
+        regs_ptr@[rhs_val] = 1;
+    ]
+    if (opcode == 6) [
+        w2_reg = w2 & 4294967295;
+        regs_ptr@[w2_reg] = 1;
+    ]
+    ret 0;
+]
+
+fn ir_dce!(func, global_scratch_tape) [
+    tape_ptr = func@[0];
+    tape_len = func@[1];
+    max_reg = func@[2];
+    call_table = func@[6];
+    live_regs_ptr = global_scratch_tape;
+    read_regs_ptr = global_scratch_tape + ((max_reg + 1) * 8);
+    loop (i:10000000 = 0 .. (max_reg + 1)) [
+        live_regs_ptr@[i] = 0;
+        read_regs_ptr@[i] = 0;
+    ]
+    // 1. Identify all read registers in single forward sweep
+    loop (idx:10000000 = 0 .. tape_len) [
+        offset = idx * 4;
+        dce_mark_inst_operands!(tape_ptr@[offset], tape_ptr@[(offset + 1)], tape_ptr@[(offset + 2)], call_table, read_regs_ptr);
+    ]
+    // 2. Backward DCE sweep with back-edge loop-carried marking & in-place NOP mutation
+    loop (i:10000000 = 0 .. tape_len) [
+        idx = (tape_len - 1) - i;
+        offset = idx * 4;
+        w0 = tape_ptr@[offset];
+        opcode = w0 & 255;
+        if (opcode != 0) [
+            w1 = tape_ptr@[(offset + 1)];
+            w2 = tape_ptr@[(offset + 2)];
+            dst = 65535;
+            if ((opcode != 7) & (opcode != 8) & (opcode != 10) & (opcode != 11)) [
+                dst = (w0 >> 16) & 65535;
+            ]
+            if ((opcode == 10) | (opcode == 11)) [
+                target = 4294967295;
+                loop (ti:2 = 0 .. (opcode - 9)) [
+                    tgt = (w2 >> (ti * 32)) & 4294967295;
+                    if (tgt < idx) [
+                        if ((target == 4294967295) | (tgt < target)) [
+                            target = tgt;
+                        ]
+                    ]
+                ]
+                if (target != 4294967295) [
+                    loop (k:10000000 = target .. idx) [
+                        k_dst = (tape_ptr@[(k * 4)] >> 16) & 65535;
+                        if (k_dst != 65535) [
+                            if (read_regs_ptr@[k_dst] != 0) [
+                                live_regs_ptr@[k_dst] = 1;
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            effect = (w0 >> 48) & 255;
+            is_live = (effect > EFFECT_READ) | (dst == 65535);
+            if (is_live == 0) [
+                is_live = live_regs_ptr@[dst];
+            ]
+            if (is_live != 0) [
+                dce_mark_inst_operands!(w0, w1, w2, call_table, live_regs_ptr);
+            ] else [
+                tape_ptr@[offset] = 0;
+            ]
+        ]
+    ]
+    ret 0;
+]

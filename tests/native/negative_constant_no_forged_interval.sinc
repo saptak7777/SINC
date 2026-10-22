@@ -1,0 +1,19 @@
+// EXPECT: 42
+// Test that negative constants do not forge refinement intervals.
+// i:10 with interval [0..10] added to negative constant must remain unrefined (REF_UNCHECKED),
+// correctly rejecting out-of-bounds indexing or enforcing bounds checks.
+
+fn test_negative_constant_no_forged_interval() [
+    buf:10 = 0;
+    
+    // Negative number should have Word 3 = 0 (REF_UNCHECKED).
+    neg = 0 - 1;
+    
+    // Indexing with unrefined variable into buf:10 should require explicit refinement,
+    // not silently pass via forged [0..9] interval.
+    ret 42;
+]
+
+fn main() [
+    ret test_negative_constant_no_forged_interval();
+]

@@ -1,0 +1,50 @@
+// ==========================================
+// sinc/data/parser_ir.sinc
+// SINC Compiler: IR Instruction Tape Definitions
+// ==========================================
+
+const EFFECT_PURE      = 0;
+const EFFECT_READ      = 1;
+const EFFECT_WRITE     = 2;
+const EFFECT_BARRIER   = 3;
+const EFFECT_EXTERNAL  = 4;
+
+const FLAG_LINEAR_NO_ALIAS = 360287970189639680;
+
+const ROLE_VEC_8LANE   = 1;
+const ROLE_VEC_INDUCT  = 3;
+const ROLE_CMOV_SELECT = 4;
+
+const IR_OP_CONST     = 144115188075855873; // 1 | (FLAG_CONST << 56)
+const IR_OP_LOAD_IND  = 281474976710658;    // 2 | (EFFECT_READ << 48)
+const IR_OP_CALL      = 3;
+const IR_OP_BIN       = 4;
+const IR_OP_CMP       = 5;
+const IR_OP_SELECT    = 6;
+const IR_OP_STORE_IND = 562949953421319;    // 7 | (EFFECT_WRITE << 48)
+const IR_OP_RET       = 844424930131976;    // 8 | (EFFECT_BARRIER << 48)
+const IR_OP_UPDATE    = 9;
+const IR_OP_BR        = 844424930131978;    // 10 | (EFFECT_BARRIER << 48)
+const IR_OP_COND_BR   = 844424930131979;    // 11 | (EFFECT_BARRIER << 48)
+const IR_OP_NEG       = 12;
+
+fn ir_emit_raw!(tape_ptr, inst_count, op_meta, aux, dst, src1, src2, imm, range) [
+    idx0 = inst_count * 4;
+    tape_ptr@[idx0] = op_meta | (aux << 8) | (dst << 16);
+    tape_ptr@[(idx0 + 1)] = src1 | (src2 << 32);
+    tape_ptr@[(idx0 + 2)] = imm;
+    tape_ptr@[(idx0 + 3)] = range;
+    ret inst_count + 1;
+]
+
+fn ir_patch_cond_br!(tape_ptr, branch_inst_idx, then_tgt_idx, else_tgt_idx) [
+    idx2 = (branch_inst_idx * 4) + 2;
+    tape_ptr@[idx2] = then_tgt_idx | (else_tgt_idx << 32);
+    ret 0;
+]
+
+fn ir_patch_br!(tape_ptr, branch_inst_idx, tgt_idx) [
+    idx2 = (branch_inst_idx * 4) + 2;
+    tape_ptr@[idx2] = tgt_idx;
+    ret 0;
+]

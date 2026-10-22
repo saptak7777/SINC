@@ -1,0 +1,6 @@
+fn transform_array!(buf, len, multiplier) [
+    loop (i:10000000 = 0 .. len) [
+        buf@[i] = buf@[i] * multiplier;
+    ]
+    ret len;
+]

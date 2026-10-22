@@ -1,0 +1,10 @@
+// COMPILE_ERROR: 7
+// Test: Syntax error inside a loop body must cleanly reject with exit 7
+fn main() [
+    loop (i = 0 .. 10) [
+        if (i % 4 == 0) [
+            ret 1;
+        ]
+    ]
+    ret 0;
+]

@@ -1,0 +1,88 @@
+// ==========================================
+// slim/pure/gate.sinc
+// S.L.I.M. Dynamic Trace & Benchmark Gatekeeper
+// Enforces [TAG: UNVERIFIED] and [TAG: REGRESSION]
+// 100% Core-Compiler Blind — Built purely with STEEL Standard Library
+// ==========================================
+
+fn slim_eval_trace!(diag_buf, trace_count, name_ptr, name_len) [
+    if (trace_count == 0) [
+        diag_emit_tag!(diag_buf, TAG_UNVERIFIED, 0, name_ptr, name_len);
+        ret 1;
+    ]
+
+    off_ptr = diag_buf + 3500;
+    off_ptr@[0] = 0;
+    // "[SLIM: PASS] Logic path verified by dynamic execution trace.\n"
+    diag_poke_ch!(diag_buf, off_ptr, 91); diag_poke_ch!(diag_buf, off_ptr, 83); diag_poke_ch!(diag_buf, off_ptr, 76);
+    diag_poke_ch!(diag_buf, off_ptr, 73); diag_poke_ch!(diag_buf, off_ptr, 77); diag_poke_ch!(diag_buf, off_ptr, 58);
+    diag_poke_ch!(diag_buf, off_ptr, 32); diag_poke_ch!(diag_buf, off_ptr, 80); diag_poke_ch!(diag_buf, off_ptr, 65);
+    diag_poke_ch!(diag_buf, off_ptr, 83); diag_poke_ch!(diag_buf, off_ptr, 83); diag_poke_ch!(diag_buf, off_ptr, 93);
+    diag_poke_ch!(diag_buf, off_ptr, 32); diag_poke_ch!(diag_buf, off_ptr, 76); diag_poke_ch!(diag_buf, off_ptr, 111);
+    diag_poke_ch!(diag_buf, off_ptr, 103); diag_poke_ch!(diag_buf, off_ptr, 105); diag_poke_ch!(diag_buf, off_ptr, 99);
+    diag_poke_ch!(diag_buf, off_ptr, 32); diag_poke_ch!(diag_buf, off_ptr, 112); diag_poke_ch!(diag_buf, off_ptr, 97);
+    diag_poke_ch!(diag_buf, off_ptr, 116); diag_poke_ch!(diag_buf, off_ptr, 104); diag_poke_ch!(diag_buf, off_ptr, 32);
+    diag_poke_ch!(diag_buf, off_ptr, 118); diag_poke_ch!(diag_buf, off_ptr, 101); diag_poke_ch!(diag_buf, off_ptr, 114);
+    diag_poke_ch!(diag_buf, off_ptr, 105); diag_poke_ch!(diag_buf, off_ptr, 102); diag_poke_ch!(diag_buf, off_ptr, 105);
+    diag_poke_ch!(diag_buf, off_ptr, 101); diag_poke_ch!(diag_buf, off_ptr, 100); diag_poke_ch!(diag_buf, off_ptr, 32);
+    diag_poke_ch!(diag_buf, off_ptr, 98); diag_poke_ch!(diag_buf, off_ptr, 121); diag_poke_ch!(diag_buf, off_ptr, 32);
+    diag_poke_ch!(diag_buf, off_ptr, 116); diag_poke_ch!(diag_buf, off_ptr, 114); diag_poke_ch!(diag_buf, off_ptr, 97);
+    diag_poke_ch!(diag_buf, off_ptr, 99); diag_poke_ch!(diag_buf, off_ptr, 101); diag_poke_ch!(diag_buf, off_ptr, 46);
+    diag_poke_ch!(diag_buf, off_ptr, 10);
+    sys_write!(1, diag_buf, off_ptr@[0]);
+    ret 0;
+]
+
+fn slim_eval_bench!(diag_buf, current_cycles, baseline_ceiling, name_ptr, name_len) [
+    if (current_cycles > baseline_ceiling) [
+        diag_emit_tag!(diag_buf, TAG_REGRESSION, 0, name_ptr, name_len);
+        ret 1;
+    ]
+
+    off_ptr = diag_buf + 3500;
+    off_ptr@[0] = 0;
+    // "[SLIM: PASS] Performance within resource budget ceiling.\n"
+    diag_poke_ch!(diag_buf, off_ptr, 91); diag_poke_ch!(diag_buf, off_ptr, 83); diag_poke_ch!(diag_buf, off_ptr, 76);
+    diag_poke_ch!(diag_buf, off_ptr, 73); diag_poke_ch!(diag_buf, off_ptr, 77); diag_poke_ch!(diag_buf, off_ptr, 58);
+    diag_poke_ch!(diag_buf, off_ptr, 32); diag_poke_ch!(diag_buf, off_ptr, 80); diag_poke_ch!(diag_buf, off_ptr, 65);
+    diag_poke_ch!(diag_buf, off_ptr, 83); diag_poke_ch!(diag_buf, off_ptr, 83); diag_poke_ch!(diag_buf, off_ptr, 93);
+    diag_poke_ch!(diag_buf, off_ptr, 32); diag_poke_ch!(diag_buf, off_ptr, 80); diag_poke_ch!(diag_buf, off_ptr, 101);
+    diag_poke_ch!(diag_buf, off_ptr, 114); diag_poke_ch!(diag_buf, off_ptr, 102); diag_poke_ch!(diag_buf, off_ptr, 111);
+    diag_poke_ch!(diag_buf, off_ptr, 114); diag_poke_ch!(diag_buf, off_ptr, 109); diag_poke_ch!(diag_buf, off_ptr, 97);
+    diag_poke_ch!(diag_buf, off_ptr, 110); diag_poke_ch!(diag_buf, off_ptr, 99); diag_poke_ch!(diag_buf, off_ptr, 101);
+    diag_poke_ch!(diag_buf, off_ptr, 32); diag_poke_ch!(diag_buf, off_ptr, 119); diag_poke_ch!(diag_buf, off_ptr, 105);
+    diag_poke_ch!(diag_buf, off_ptr, 116); diag_poke_ch!(diag_buf, off_ptr, 104); diag_poke_ch!(diag_buf, off_ptr, 105);
+    diag_poke_ch!(diag_buf, off_ptr, 110); diag_poke_ch!(diag_buf, off_ptr, 32); diag_poke_ch!(diag_buf, off_ptr, 98);
+    diag_poke_ch!(diag_buf, off_ptr, 117); diag_poke_ch!(diag_buf, off_ptr, 100); diag_poke_ch!(diag_buf, off_ptr, 103);
+    diag_poke_ch!(diag_buf, off_ptr, 101); diag_poke_ch!(diag_buf, off_ptr, 116); diag_poke_ch!(diag_buf, off_ptr, 46);
+    diag_poke_ch!(diag_buf, off_ptr, 10);
+    sys_write!(1, diag_buf, off_ptr@[0]);
+    ret 0;
+]
+
+fn slim_eval_mutant_result!(diag_buf, test_exit_code, name_ptr, name_len) [
+    if (test_exit_code == 0) [
+        // Test suite passed on mutant -> MUTANT SURVIVED! Weak test!
+        diag_emit_tag!(diag_buf, TAG_WEAK_TEST, 0, name_ptr, name_len);
+        ret 1;
+    ]
+
+    off_ptr = diag_buf + 3500;
+    off_ptr@[0] = 0;
+    // "[SLIM: PASS] Mutant killed by test assertion.\n"
+    diag_poke_ch!(diag_buf, off_ptr, 91); diag_poke_ch!(diag_buf, off_ptr, 83); diag_poke_ch!(diag_buf, off_ptr, 76);
+    diag_poke_ch!(diag_buf, off_ptr, 73); diag_poke_ch!(diag_buf, off_ptr, 77); diag_poke_ch!(diag_buf, off_ptr, 58);
+    diag_poke_ch!(diag_buf, off_ptr, 32); diag_poke_ch!(diag_buf, off_ptr, 80); diag_poke_ch!(diag_buf, off_ptr, 65);
+    diag_poke_ch!(diag_buf, off_ptr, 83); diag_poke_ch!(diag_buf, off_ptr, 83); diag_poke_ch!(diag_buf, off_ptr, 93);
+    diag_poke_ch!(diag_buf, off_ptr, 32); diag_poke_ch!(diag_buf, off_ptr, 77); diag_poke_ch!(diag_buf, off_ptr, 117);
+    diag_poke_ch!(diag_buf, off_ptr, 116); diag_poke_ch!(diag_buf, off_ptr, 97); diag_poke_ch!(diag_buf, off_ptr, 110);
+    diag_poke_ch!(diag_buf, off_ptr, 116); diag_poke_ch!(diag_buf, off_ptr, 32); diag_poke_ch!(diag_buf, off_ptr, 107);
+    diag_poke_ch!(diag_buf, off_ptr, 105); diag_poke_ch!(diag_buf, off_ptr, 108); diag_poke_ch!(diag_buf, off_ptr, 108);
+    diag_poke_ch!(diag_buf, off_ptr, 101); diag_poke_ch!(diag_buf, off_ptr, 100); diag_poke_ch!(diag_buf, off_ptr, 32);
+    diag_poke_ch!(diag_buf, off_ptr, 98); diag_poke_ch!(diag_buf, off_ptr, 121); diag_poke_ch!(diag_buf, off_ptr, 32);
+    diag_poke_ch!(diag_buf, off_ptr, 116); diag_poke_ch!(diag_buf, off_ptr, 101); diag_poke_ch!(diag_buf, off_ptr, 115);
+    diag_poke_ch!(diag_buf, off_ptr, 116); diag_poke_ch!(diag_buf, off_ptr, 46);
+    diag_poke_ch!(diag_buf, off_ptr, 10);
+    sys_write!(1, diag_buf, off_ptr@[0]);
+    ret 0;
+]

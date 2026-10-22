@@ -1,0 +1,14 @@
+// EXPECT: 42
+// REQUIRE_INSN: cmov
+// Test: Branchless CMOV flattening with safe constant division in candidate arm
+fn compute_div(c, x) [
+    res = x / 2;
+    if (c > 0) [
+        res = x / 4;
+    ]
+    ret res;
+]
+
+fn main() [
+    ret compute_div(1, 168);
+]

@@ -1,0 +1,3 @@
+fn compute_b(x) [
+    ret x + 100;
+]

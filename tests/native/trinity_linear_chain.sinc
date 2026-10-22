@@ -1,0 +1,21 @@
+// EXPECT: 42
+// Test: Linear variable single consumption through a pipeline
+fn step_add(x~) [
+    ret x~ + 10;
+]
+
+fn step_mul(x~) [
+    ret x~ * 2;
+]
+
+fn step_sub(x~) [
+    ret x~ - 8;
+]
+
+fn main!() [
+    val~ = 15;
+    t1~ = step_add(val~);
+    t2~ = step_mul(t1~);
+    t3 = step_sub(t2~);
+    ret t3;
+]

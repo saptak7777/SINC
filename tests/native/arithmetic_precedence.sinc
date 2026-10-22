@@ -1,0 +1,16 @@
+// EXPECT: 45
+// REQUIRE_INSN: imul
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn main() [
+    a = helper(10);
+    b = helper(20);
+    c = helper(2);
+    ret a + b * c - 5;
+]

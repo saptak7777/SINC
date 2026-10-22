@@ -1,0 +1,8 @@
+// COMPILE_ERROR: 8
+// Test: Linear variable double consumption is rejected at compile time
+fn main!() [
+    packet:8 = 10;
+    a = packet;
+    b = packet;
+    ret a + b;
+]

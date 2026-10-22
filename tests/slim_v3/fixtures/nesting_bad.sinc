@@ -1,0 +1,17 @@
+// fixture: nesting_bad.sinc — deep call nesting
+fn f1(x) [
+    ret x;
+]
+
+fn f2(x) [
+    ret x;
+]
+
+fn f3(x) [
+    ret x;
+]
+
+fn main(y) [
+    val = f1(f2(f3(y)));
+    ret val;
+]

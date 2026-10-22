@@ -1,0 +1,93 @@
+// ==========================================
+// sinc/pure/parser_bindings.sinc
+// SINC Compiler: Scope & Variable Binding Resolver
+// ==========================================
+
+fn bindings_init!(bindings, sym_count) [
+    loop (i:10000000 = 0 .. sym_count) [
+        bindings@[i] = 0;
+    ]
+    ret 0;
+]
+
+fn bindings_branch_close!(journal, bindings, mark, then_lin) [
+    b_start = mark;
+    if (!(then_lin < 0)) [
+        b_start = mark + then_lin;
+    ]
+    b_end = journal@[0];
+    lin_cnt = 0;
+    if (b_end > b_start) [
+        loop (i:10000 = 0 .. (b_end - b_start)) [
+            idx = b_end - 1 - i;
+            j_off = 1 + (idx * 2);
+            sym_id = journal@[j_off];
+            old_w0 = journal@[(j_off + 1)];
+            cur_w0 = bindings@[sym_id];
+
+            if (old_w0 == 0) [
+                if ((cur_w0 & 255) == 2) [
+                    sys_exit!(4);
+                ]
+                bindings@[sym_id] = 0;
+            ] else [
+                if (then_lin < 0) [
+                    bindings@[sym_id] = old_w0;
+                ]
+                if ((old_w0 & 255) == 2) [
+                    if (then_lin < 0) [
+                        dst_off = 1 + ((mark + lin_cnt) * 2);
+                        journal@[dst_off] = sym_id;
+                        journal@[(dst_off + 1)] = old_w0;
+                    ]
+                    lin_cnt = lin_cnt + 1;
+                ]
+            ]
+        ]
+    ]
+
+    if (then_lin < 0) [
+        journal@[0] = mark + lin_cnt;
+        ret lin_cnt;
+    ]
+
+    if (then_lin != lin_cnt) [
+        sys_exit!(3);
+    ]
+    loop (ti:10000 = 0 .. then_lin) [
+        j_off = 1 + ((mark + ti) * 2);
+        sym_id = journal@[j_off];
+        if ((bindings@[sym_id] & 255) != 3) [
+            sys_exit!(3);
+        ]
+    ]
+    journal@[0] = mark + then_lin;
+    ret 0;
+]
+
+fn bindings_touch!(journal, bindings, sym_id, assign, is_linear, type_payload, val_id) [
+    w0 = bindings@[sym_id];
+    state = w0 & 255;
+    if (state == 3) [
+        sys_exit!(8);
+    ]
+
+    if ((state == 0) | (assign == 1) | ((state == 2) & (assign == 0) & (is_linear != 0))) [
+        l_cnt = journal@[0];
+        l_off = 1 + (l_cnt * 2);
+        journal@[l_off] = sym_id;
+        journal@[(l_off + 1)] = w0;
+        journal@[0] = l_cnt + 1;
+    ]
+
+    if ((state == 0) | (assign == 1)) [
+        new_state = 1 + (is_linear != 0);
+        bindings@[sym_id] = new_state | (val_id << 8) | (type_payload << 32);
+        ret val_id;
+    ]
+
+    if ((state == 2) & (assign == 0) & (is_linear != 0)) [
+        bindings@[sym_id] = (w0 & -256) | 3;
+    ]
+    ret (w0 >> 8) & 16777215;
+]

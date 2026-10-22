@@ -1,0 +1,12 @@
+// COMPILE_ERROR: 5
+// Test: Pure function calling impure extern is rejected at compile time
+extern fn write!();
+
+fn bad_pure_func() [
+    write!();
+    ret 0;
+]
+
+fn main!() [
+    ret bad_pure_func();
+]

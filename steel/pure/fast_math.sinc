@@ -1,0 +1,10 @@
+// ==========================================
+// steel/math/fast_math.sinc
+// Fast Math Utilities
+// ==========================================
+
+extern fn sqrt_f64!();
+
+fn sys_sqrt!(x) [
+    ret sqrt_f64!(x);
+]

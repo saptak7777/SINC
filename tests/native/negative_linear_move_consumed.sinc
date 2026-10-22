@@ -1,0 +1,8 @@
+// COMPILE_ERROR: 8
+// Test: Moving a linear resource transfers linearity and marks original variable consumed
+fn main!() [
+    packet:8 = 10;
+    p = packet;
+    again = packet;
+    ret p + again;
+]

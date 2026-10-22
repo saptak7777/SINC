@@ -1,0 +1,15 @@
+fn bench_tree_traverse() [
+    acc = 0;
+    curr = 1;
+    loop (i:100000000 = 0 .. 100000000) [
+        left = (curr * 2) & 1023;
+        right = (left + 1) & 1023;
+        if ((curr & 1) == 0) [
+            curr = left + 1;
+        ] else [
+            curr = right + 2;
+        ]
+        acc = acc + curr;
+    ]
+    ret acc & 255;
+]

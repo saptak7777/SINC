@@ -1,0 +1,21 @@
+// ==========================================
+// hound/data/errno_table.sinc
+// HOUND: The SINC Hardware Logic Probe
+// Compact Linux x86-64 Errno Constants
+// ==========================================
+
+const ERRNO_EPERM   = 1;  // Operation not permitted
+const ERRNO_ENOENT  = 2;  // No such file or directory
+const ERRNO_ESRCH   = 3;  // No such process
+const ERRNO_EINTR   = 4;  // Interrupted system call
+const ERRNO_EIO     = 5;  // I/O error
+const ERRNO_EBADF   = 9;  // Bad file descriptor
+const ERRNO_EAGAIN  = 11; // Try again / Resource temporarily unavailable
+const ERRNO_ENOMEM  = 12; // Out of memory
+const ERRNO_EACCES  = 13; // Permission denied
+const ERRNO_EFAULT  = 14; // Bad address
+const ERRNO_EBUSY   = 16; // Device or resource busy
+const ERRNO_EEXIST  = 17; // File exists
+const ERRNO_EINVAL  = 22; // Invalid argument
+const ERRNO_ENOSPC  = 28; // No space left on device
+const ERRNO_EPIPE   = 32; // Broken pipe

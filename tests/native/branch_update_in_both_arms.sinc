@@ -1,0 +1,19 @@
+// EXPECT: 65
+// Test: Branch arms mutating multiple variables in a loop
+fn main() [
+    x = 5;
+    y = 10;
+    total = 0;
+    loop (i:50 = 0 .. 50) [
+        if ((i & 1) == 0) [
+            x = x + 2;
+            y = y + 1;
+            total = total + x;
+        ] else [
+            x = x + 1;
+            y = y + 3;
+            total = total + y;
+        ]
+    ]
+    ret (total & 255);
+]

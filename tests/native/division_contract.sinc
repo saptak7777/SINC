@@ -1,0 +1,8 @@
+// EXPECT: 4
+fn divide(a, b) [
+    ret a / b;
+]
+
+fn main() [
+    ret divide(20, 5);
+]

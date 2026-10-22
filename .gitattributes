@@ -1,0 +1,14 @@
+# ==============================================================================
+# SINC Repository Language Attributes
+# ==============================================================================
+
+# Exclude auxiliary test runners, benchmarks, and shell scripts from language statistics
+tests/** linguist-documentation linguist-detectable=false
+bench/** linguist-vendored linguist-detectable=false
+examples/** linguist-documentation linguist-detectable=false
+*.sh linguist-vendored linguist-detectable=false
+*.py linguist-vendored linguist-detectable=false
+*.c  linguist-vendored linguist-detectable=false
+*.s  linguist-vendored linguist-detectable=false
+*.asm linguist-vendored linguist-detectable=false
+combined_compiler.sinc linguist-generated

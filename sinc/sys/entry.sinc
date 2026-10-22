@@ -1,0 +1,91 @@
+// ==========================================
+// sinc/sys/entry.sinc
+// SINC Compiler: Self-Hosted Pipeline & Code Generation Core
+// ==========================================
+
+fn compile_core!(src_buf, src_len, arena) [
+    ctx = arena_alloc_words!(arena, 20);
+    ctx@[0] = arena;
+
+    sym_table = arena_alloc_words!(arena, 16384);
+    sym_count_cell = arena_alloc_words!(arena, 1);
+
+    lut = arena_alloc_words!(arena, 256);
+    lexer_init!(arena, sym_table, 4096, sym_count_cell, lut);
+
+    pratt_lut = arena_alloc_words!(arena, 256);
+    parser_init_pratt!(pratt_lut);
+
+    call_count_ptr = arena_alloc_words!(arena, 2);
+
+    lex_state = arena_alloc_words!(arena, 6);
+    lex_state@[0] = src_buf;
+    lex_state@[1] = src_len;
+    lex_state@[3] = 1;
+
+    global_scratch_tape = arena_alloc_words!(arena, 1048576);
+
+    ctx@[1]  = pratt_lut;
+    ctx@[2]  = lex_state;
+    ctx@[3]  = arena_alloc_words!(arena, 4);
+    ctx@[4]  = sym_table;
+    ctx@[5]  = 4096;
+    ctx@[6]  = sym_count_cell;
+    ctx@[7]  = lut;
+    ctx@[9]  = call_count_ptr + 8;
+    ctx@[10] = arena_alloc_words!(arena, 4096);
+    ctx@[12] = arena_alloc_words!(arena, 16384);
+    ctx@[13] = call_count_ptr;
+    ctx@[14] = arena_init!(arena_alloc_words!(arena, 131072), 1048576);
+    ctx@[15] = arena_alloc_words!(arena, 65536);
+    ctx@[16] = arena_alloc_words!(arena, 8192);
+    ctx@[17] = 0;
+    ctx@[18] = 0;
+    ctx@[19] = global_scratch_tape;
+
+    lexer_advance!(ctx);
+
+    prog_desc = parse_program!(ctx);
+
+    ft = prog_desc@[0];
+    fc = prog_desc@[1];
+    if (fc < 1) [
+        sys_exit!(10);
+    ]
+    if (fc > 1024) [
+        sys_exit!(11);
+    ]
+    f_by_sym = prog_desc@[8];
+    loop (i = 0 .. fc) [
+        f_desc = ft@[i];
+        if (f_desc@[7] > 0) [
+            ir_inline!(arena, f_desc, f_by_sym, global_scratch_tape);
+        ]
+    ]
+
+    loop (i = 0 .. fc) [
+        f_desc = ft@[i];
+        _ = ir_unroll!(arena, f_desc, global_scratch_tape);
+        ir_loops!(arena, f_desc, global_scratch_tape);
+        ir_simplify!(f_desc, global_scratch_tape);
+        ir_erls!(f_desc, global_scratch_tape);
+        ir_dce!(f_desc, global_scratch_tape);
+    ]
+    code_buffer = arena_alloc_words!(arena, 5000000);
+    cursor_ptr = arena_alloc_words!(arena, 1);
+
+    compile_program!(code_buffer, cursor_ptr, prog_desc, arena);
+    code_len = cursor_ptr@[0];
+    if (code_len > 40000000) [
+        sys_exit!(12);
+    ]
+
+    last_func = ft@[(fc - 1)];
+    safe_header = emit_safe_payload!(code_len, last_func@[10], arena);
+
+    res = arena_alloc_words!(arena, 3);
+    res@[0] = code_buffer;
+    res@[1] = code_len;
+    res@[2] = safe_header;
+    ret res;
+]

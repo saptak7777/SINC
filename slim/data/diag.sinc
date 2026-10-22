@@ -1,0 +1,706 @@
+// ==========================================
+// slim/data/diag.sinc
+// S.L.I.M. Structured Diagnostic Protocol
+// Single Source of Truth for Diagnostic Tag Emitting
+// Zero double-quote string literals (SINC AST-Free Compliant)
+// ==========================================
+
+const TAG_LAZY        = 1;
+const TAG_DEAD_WEIGHT = 2;
+const TAG_UNNECESSARY = 3;
+const TAG_UNVERIFIED  = 4;
+const TAG_WEAK_TEST   = 5;
+const TAG_REGRESSION  = 6;
+const TAG_GHOST       = 7;
+const TAG_SPIN        = 8;
+const TAG_EAGER       = 9;
+const TAG_BANDAID     = 10;
+const TAG_SPLINTER    = 11;
+const TAG_FOSSIL      = 12;
+const TAG_OVERCHECK   = 13;
+const TAG_REFETCH     = 14;
+const TAG_RAWDATA     = 15;
+const TAG_WRAPPER     = 16;
+
+fn diag_poke_ch!(buf, off_ptr, ch) [
+    idx = off_ptr@[0];
+    buf@[idx * 1] = ch;
+    off_ptr@[0] = idx + 1;
+    ret 0;
+]
+
+fn diag_poke_str!(buf, off_ptr, str_ptr, len) [
+    if (len > 0) [
+        loop (i:10000 = 0 .. len) [
+            ch = str_ptr@[i * 1];
+            diag_poke_ch!(buf, off_ptr, ch);
+        ]
+    ]
+    ret 0;
+]
+
+fn diag_poke_dec!(buf, off_ptr, val) [
+    if (val == 0) [
+        diag_poke_ch!(buf, off_ptr, 48); // '0'
+        ret 0;
+    ]
+    v = val;
+    if (v > 999) [
+        d = v / 1000;
+        diag_poke_ch!(buf, off_ptr, d + 48);
+        v = v - (d * 1000);
+    ]
+    if (v > 99) [
+        d = v / 100;
+        diag_poke_ch!(buf, off_ptr, d + 48);
+        v = v - (d * 100);
+    ]
+    if (v > 9) [
+        d = v / 10;
+        diag_poke_ch!(buf, off_ptr, d + 48);
+        v = v - (d * 10);
+    ]
+    diag_poke_ch!(buf, off_ptr, v + 48);
+    ret 0;
+]
+
+fn diag_poke_lazy_desc!(buf, off_ptr) [
+    // "statement complexity exceeds cap (4). Unroll into multi-line steps."
+    // 's'=115, 't'=116, 'a'=97, 't'=116, 'e'=101, 'm'=109, 'e'=101, 'n'=110, 't'=116, ' '=32
+    diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 109);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 32);
+    // "complexity "
+    diag_poke_ch!(buf, off_ptr, 99); diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 109);
+    diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 120); diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 121); diag_poke_ch!(buf, off_ptr, 32);
+    // "exceeds cap (4). Unroll into multi-line steps."
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 120); diag_poke_ch!(buf, off_ptr, 99);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 100);
+    diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 99);
+    diag_poke_ch!(buf, off_ptr, 97); diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 40); diag_poke_ch!(buf, off_ptr, 52); diag_poke_ch!(buf, off_ptr, 41);
+    diag_poke_ch!(buf, off_ptr, 46); diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 85);
+    diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 111);
+    diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 109);
+    diag_poke_ch!(buf, off_ptr, 117); diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 45); diag_poke_ch!(buf, off_ptr, 108);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 115);
+    diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_dead_weight_desc!(buf, off_ptr) [
+    // " is never called. Prune to optimize token context."
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 115);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 118); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 99); diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 46); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 80); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 117);
+    diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 122); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 107);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 99); diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 120);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_unnecessary_desc!(buf, off_ptr) [
+    // " is assigned but never read. Delete or return."
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 115);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 97); diag_poke_ch!(buf, off_ptr, 115);
+    diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 103);
+    diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 100);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 98); diag_poke_ch!(buf, off_ptr, 117);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 118); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 97); diag_poke_ch!(buf, off_ptr, 100);
+    diag_poke_ch!(buf, off_ptr, 46); diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 68);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 117); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_unverified_desc!(buf, off_ptr) [
+    // " has no dynamic test execution trace."
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 104); diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 100);
+    diag_poke_ch!(buf, off_ptr, 121); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 99);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 120); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 99); diag_poke_ch!(buf, off_ptr, 117); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 97); diag_poke_ch!(buf, off_ptr, 99); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_weak_test_desc!(buf, off_ptr) [
+    // " mutant survived! Test suite is weak; assert behavioral change."
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 117);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 97); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 115);
+    diag_poke_ch!(buf, off_ptr, 117); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 118);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 118); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 33); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 84); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 115);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 119);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 97); diag_poke_ch!(buf, off_ptr, 107);
+    diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_regression_desc!(buf, off_ptr) [
+    // " exceeded cycle/instruction ceiling vs baseline."
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 120);
+    diag_poke_ch!(buf, off_ptr, 99); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 100);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 99); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 103); diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_ghost_desc!(buf, off_ptr) [
+    // " written but never read in scope. Remove or propagate."
+    // ' '=32 'w'=119 'r'=114 'i'=105 't'=116 't'=116 'e'=101 'n'=110
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 119); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 32);
+    // 'b'=98 'u'=117 't'=116 ' '=32 'n'=110 'e'=101 'v'=118 'e'=101 'r'=114
+    diag_poke_ch!(buf, off_ptr, 98);  diag_poke_ch!(buf, off_ptr, 117); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 118); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 114);
+    // ' '=32 'r'=114 'e'=101 'a'=97 'd'=100 ' '=32 'i'=105 'n'=110 ' '=32
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 32);
+    // 's'=115 'c'=99 'o'=111 'p'=112 'e'=101 '.'=46
+    diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 99);  diag_poke_ch!(buf, off_ptr, 111);
+    diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_spin_desc!(buf, off_ptr) [
+    // " loop trip variable never mutated in body. Infinite or dead loop."
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 111);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 118);
+    diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 118);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 117); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 98);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 121);
+    diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_eager_desc!(buf, off_ptr) [
+    // " heavy computation precedes discarding branch. Defer past guard."
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 104); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 118); diag_poke_ch!(buf, off_ptr, 121);
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 99);  diag_poke_ch!(buf, off_ptr, 111);
+    diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 117);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 99);  diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 100);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 115);
+    diag_poke_ch!(buf, off_ptr, 99);  diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 103); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 98);
+    diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 99);  diag_poke_ch!(buf, off_ptr, 104); diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_bandaid_desc!(buf, off_ptr) [
+    // " null guard on infallible call masks structural bug. Fix root cause."
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 117);
+    diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 103); diag_poke_ch!(buf, off_ptr, 117); diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 102);
+    diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 108);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 98); diag_poke_ch!(buf, off_ptr, 108);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 99);
+    diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 108);
+    diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_splinter_desc!(buf, off_ptr) [
+    // " two or more variables track the same concept. Consolidate."
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 119);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 111);
+    diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 109);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 118); diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 99);  diag_poke_ch!(buf, off_ptr, 107); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 109);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 99);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 99);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_fossil_desc!(buf, off_ptr) [
+    // " self-assignment or dead break-idiom write. Remove."
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 102); diag_poke_ch!(buf, off_ptr, 45);
+    diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 115);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 103); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 111);
+    diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 100);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 100);
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 119); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_overcheck_desc!(buf, off_ptr) [
+    // " same condition checked twice in scope. Merge or hoist."
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 99);  diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 99);  diag_poke_ch!(buf, off_ptr, 104);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 99);  diag_poke_ch!(buf, off_ptr, 107);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 119); diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 99);  diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_refetch_desc!(buf, off_ptr) [
+    // " re-read from same source already loaded above. Cache the value."
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 45);  diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 102); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 111);
+    diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 115);
+    diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 111);
+    diag_poke_ch!(buf, off_ptr, 117); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 99);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_rawdata_desc!(buf, off_ptr) [
+    // " bare magic literal in comparison."
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 98);  diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 103);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 99);  diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 99);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 112);
+    diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_poke_wrapper_desc!(buf, off_ptr) [
+    // " trivial 1:1 forwarding wrapper. Call target directly or inline."
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 118); diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 49);  diag_poke_ch!(buf, off_ptr, 58);  diag_poke_ch!(buf, off_ptr, 49);
+    diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 102); diag_poke_ch!(buf, off_ptr, 111);
+    diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 119); diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 103); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 119); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 46);  diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 67);  diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 108);
+    diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 32);  diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 97);  diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 103);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 99);  diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 121); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 108);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 46);
+    ret 0;
+]
+
+fn diag_emit_tag!(buf, tag_type, line_num, name_ptr, name_len) [
+    off_ptr = buf + 3500;
+    off_ptr@[0] = 0;
+
+    // 1. Tag Prefix: "[TAG: "
+    diag_poke_ch!(buf, off_ptr, 91); // '['
+    diag_poke_ch!(buf, off_ptr, 84); // 'T'
+    diag_poke_ch!(buf, off_ptr, 65); // 'A'
+    diag_poke_ch!(buf, off_ptr, 71); // 'G'
+    diag_poke_ch!(buf, off_ptr, 58); // ':'
+    diag_poke_ch!(buf, off_ptr, 32); // ' '
+
+    if (tag_type == TAG_LAZY) [
+        // "LAZY] "
+        diag_poke_ch!(buf, off_ptr, 76); diag_poke_ch!(buf, off_ptr, 65);
+        diag_poke_ch!(buf, off_ptr, 90); diag_poke_ch!(buf, off_ptr, 89);
+        diag_poke_ch!(buf, off_ptr, 93); diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_DEAD_WEIGHT) [
+        // "DEAD WEIGHT] "
+        diag_poke_ch!(buf, off_ptr, 68); diag_poke_ch!(buf, off_ptr, 69);
+        diag_poke_ch!(buf, off_ptr, 65); diag_poke_ch!(buf, off_ptr, 68);
+        diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 87);
+        diag_poke_ch!(buf, off_ptr, 69); diag_poke_ch!(buf, off_ptr, 73);
+        diag_poke_ch!(buf, off_ptr, 71); diag_poke_ch!(buf, off_ptr, 72);
+        diag_poke_ch!(buf, off_ptr, 84); diag_poke_ch!(buf, off_ptr, 93);
+        diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_UNNECESSARY) [
+        // "UNNECESSARY] "
+        diag_poke_ch!(buf, off_ptr, 85); diag_poke_ch!(buf, off_ptr, 78);
+        diag_poke_ch!(buf, off_ptr, 78); diag_poke_ch!(buf, off_ptr, 69);
+        diag_poke_ch!(buf, off_ptr, 67); diag_poke_ch!(buf, off_ptr, 69);
+        diag_poke_ch!(buf, off_ptr, 83); diag_poke_ch!(buf, off_ptr, 83);
+        diag_poke_ch!(buf, off_ptr, 65); diag_poke_ch!(buf, off_ptr, 82);
+        diag_poke_ch!(buf, off_ptr, 89); diag_poke_ch!(buf, off_ptr, 93);
+        diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_UNVERIFIED) [
+        // "UNVERIFIED] "
+        diag_poke_ch!(buf, off_ptr, 85); diag_poke_ch!(buf, off_ptr, 78);
+        diag_poke_ch!(buf, off_ptr, 86); diag_poke_ch!(buf, off_ptr, 69);
+        diag_poke_ch!(buf, off_ptr, 82); diag_poke_ch!(buf, off_ptr, 73);
+        diag_poke_ch!(buf, off_ptr, 70); diag_poke_ch!(buf, off_ptr, 73);
+        diag_poke_ch!(buf, off_ptr, 69); diag_poke_ch!(buf, off_ptr, 68);
+        diag_poke_ch!(buf, off_ptr, 93); diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_WEAK_TEST) [
+        // "WEAK TEST] "
+        diag_poke_ch!(buf, off_ptr, 87); diag_poke_ch!(buf, off_ptr, 69);
+        diag_poke_ch!(buf, off_ptr, 65); diag_poke_ch!(buf, off_ptr, 75);
+        diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 84);
+        diag_poke_ch!(buf, off_ptr, 69); diag_poke_ch!(buf, off_ptr, 83);
+        diag_poke_ch!(buf, off_ptr, 84); diag_poke_ch!(buf, off_ptr, 93);
+        diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_REGRESSION) [
+        // "REGRESSION] "
+        diag_poke_ch!(buf, off_ptr, 82); diag_poke_ch!(buf, off_ptr, 69);
+        diag_poke_ch!(buf, off_ptr, 71); diag_poke_ch!(buf, off_ptr, 82);
+        diag_poke_ch!(buf, off_ptr, 69); diag_poke_ch!(buf, off_ptr, 83);
+        diag_poke_ch!(buf, off_ptr, 83); diag_poke_ch!(buf, off_ptr, 73);
+        diag_poke_ch!(buf, off_ptr, 79); diag_poke_ch!(buf, off_ptr, 78);
+        diag_poke_ch!(buf, off_ptr, 93); diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_GHOST) [
+        // "GHOST] "
+        diag_poke_ch!(buf, off_ptr, 71); diag_poke_ch!(buf, off_ptr, 72);
+        diag_poke_ch!(buf, off_ptr, 79); diag_poke_ch!(buf, off_ptr, 83);
+        diag_poke_ch!(buf, off_ptr, 84); diag_poke_ch!(buf, off_ptr, 93);
+        diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_SPIN) [
+        // "SPIN] "
+        diag_poke_ch!(buf, off_ptr, 83); diag_poke_ch!(buf, off_ptr, 80);
+        diag_poke_ch!(buf, off_ptr, 73); diag_poke_ch!(buf, off_ptr, 78);
+        diag_poke_ch!(buf, off_ptr, 93); diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_EAGER) [
+        // "EAGER] "
+        diag_poke_ch!(buf, off_ptr, 69); diag_poke_ch!(buf, off_ptr, 65);
+        diag_poke_ch!(buf, off_ptr, 71); diag_poke_ch!(buf, off_ptr, 69);
+        diag_poke_ch!(buf, off_ptr, 82); diag_poke_ch!(buf, off_ptr, 93);
+        diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_BANDAID) [
+        // "BANDAID] "
+        diag_poke_ch!(buf, off_ptr, 66); diag_poke_ch!(buf, off_ptr, 65);
+        diag_poke_ch!(buf, off_ptr, 78); diag_poke_ch!(buf, off_ptr, 68);
+        diag_poke_ch!(buf, off_ptr, 65); diag_poke_ch!(buf, off_ptr, 73);
+        diag_poke_ch!(buf, off_ptr, 68); diag_poke_ch!(buf, off_ptr, 93);
+        diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_SPLINTER) [
+        // "SPLINTER] "
+        diag_poke_ch!(buf, off_ptr, 83); diag_poke_ch!(buf, off_ptr, 80);
+        diag_poke_ch!(buf, off_ptr, 76); diag_poke_ch!(buf, off_ptr, 73);
+        diag_poke_ch!(buf, off_ptr, 78); diag_poke_ch!(buf, off_ptr, 84);
+        diag_poke_ch!(buf, off_ptr, 69); diag_poke_ch!(buf, off_ptr, 82);
+        diag_poke_ch!(buf, off_ptr, 93); diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_FOSSIL) [
+        // "FOSSIL] "
+        diag_poke_ch!(buf, off_ptr, 70); diag_poke_ch!(buf, off_ptr, 79);
+        diag_poke_ch!(buf, off_ptr, 83); diag_poke_ch!(buf, off_ptr, 83);
+        diag_poke_ch!(buf, off_ptr, 73); diag_poke_ch!(buf, off_ptr, 76);
+        diag_poke_ch!(buf, off_ptr, 93); diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_OVERCHECK) [
+        // "OVERCHECK] "
+        diag_poke_ch!(buf, off_ptr, 79); diag_poke_ch!(buf, off_ptr, 86);
+        diag_poke_ch!(buf, off_ptr, 69); diag_poke_ch!(buf, off_ptr, 82);
+        diag_poke_ch!(buf, off_ptr, 67); diag_poke_ch!(buf, off_ptr, 72);
+        diag_poke_ch!(buf, off_ptr, 69); diag_poke_ch!(buf, off_ptr, 67);
+        diag_poke_ch!(buf, off_ptr, 75); diag_poke_ch!(buf, off_ptr, 93);
+        diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_REFETCH) [
+        // "REFETCH] "
+        diag_poke_ch!(buf, off_ptr, 82); diag_poke_ch!(buf, off_ptr, 69);
+        diag_poke_ch!(buf, off_ptr, 70); diag_poke_ch!(buf, off_ptr, 69);
+        diag_poke_ch!(buf, off_ptr, 84); diag_poke_ch!(buf, off_ptr, 67);
+        diag_poke_ch!(buf, off_ptr, 72); diag_poke_ch!(buf, off_ptr, 93);
+        diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_RAWDATA) [
+        // "RAWDATA] "
+        diag_poke_ch!(buf, off_ptr, 82); diag_poke_ch!(buf, off_ptr, 65);
+        diag_poke_ch!(buf, off_ptr, 87); diag_poke_ch!(buf, off_ptr, 68);
+        diag_poke_ch!(buf, off_ptr, 65); diag_poke_ch!(buf, off_ptr, 84);
+        diag_poke_ch!(buf, off_ptr, 65); diag_poke_ch!(buf, off_ptr, 93);
+        diag_poke_ch!(buf, off_ptr, 32);
+    ]
+    if (tag_type == TAG_WRAPPER) [
+        // "WRAPPER] "
+        diag_poke_ch!(buf, off_ptr, 87); diag_poke_ch!(buf, off_ptr, 82);
+        diag_poke_ch!(buf, off_ptr, 65); diag_poke_ch!(buf, off_ptr, 80);
+        diag_poke_ch!(buf, off_ptr, 80); diag_poke_ch!(buf, off_ptr, 69);
+        diag_poke_ch!(buf, off_ptr, 82); diag_poke_ch!(buf, off_ptr, 93);
+        diag_poke_ch!(buf, off_ptr, 32);
+    ]
+
+    file_table = buf@[450];
+    file_count = buf@[451];
+    file_idx   = buf@[452];
+
+    if ((file_count > 1) & (file_table != 0)) [
+        foff = file_idx * 4;
+        f_path = file_table@[(foff + 0)];
+        f_len  = file_table@[(foff + 1)];
+        if (f_len > 0) [
+            diag_poke_str!(buf, off_ptr, f_path, f_len);
+            diag_poke_ch!(buf, off_ptr, 58); // ':'
+        ]
+    ]
+
+    // 2. Line number (if > 0): "line N: "
+    if (line_num > 0) [
+        diag_poke_ch!(buf, off_ptr, 108); // 'l'
+        diag_poke_ch!(buf, off_ptr, 105); // 'i'
+        diag_poke_ch!(buf, off_ptr, 110); // 'n'
+        diag_poke_ch!(buf, off_ptr, 101); // 'e'
+        diag_poke_ch!(buf, off_ptr, 32);  // ' '
+        diag_poke_dec!(buf, off_ptr, line_num);
+        diag_poke_ch!(buf, off_ptr, 58);  // ':'
+        diag_poke_ch!(buf, off_ptr, 32);  // ' '
+    ]
+
+    // 3. Name or identifier
+    if (name_len > 0) [
+        diag_poke_str!(buf, off_ptr, name_ptr, name_len);
+    ]
+
+    // 4. Detailed description
+    if (tag_type == TAG_LAZY) [
+        diag_poke_lazy_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_DEAD_WEIGHT) [
+        diag_poke_dead_weight_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_UNNECESSARY) [
+        diag_poke_unnecessary_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_UNVERIFIED) [
+        diag_poke_unverified_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_WEAK_TEST) [
+        diag_poke_weak_test_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_REGRESSION) [
+        diag_poke_regression_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_GHOST) [
+        diag_poke_ghost_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_SPIN) [
+        diag_poke_spin_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_EAGER) [
+        diag_poke_eager_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_BANDAID) [
+        diag_poke_bandaid_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_SPLINTER) [
+        diag_poke_splinter_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_FOSSIL) [
+        diag_poke_fossil_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_OVERCHECK) [
+        diag_poke_overcheck_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_REFETCH) [
+        diag_poke_refetch_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_RAWDATA) [
+        diag_poke_rawdata_desc!(buf, off_ptr);
+    ]
+    if (tag_type == TAG_WRAPPER) [
+        diag_poke_wrapper_desc!(buf, off_ptr);
+    ]
+
+    diag_poke_ch!(buf, off_ptr, 10); // '\n'
+
+    // Flush to stderr (FD 2)
+    total_len = off_ptr@[0];
+    sys_write!(2, buf, total_len);
+    ret total_len;
+]
+
+fn diag_print_pass!(buf) [
+    off_ptr = buf + 3500;
+    off_ptr@[0] = 0;
+    // "[SLIM: PASS] All static architectural constraints satisfied.\n"
+    diag_poke_ch!(buf, off_ptr, 91); diag_poke_ch!(buf, off_ptr, 83); diag_poke_ch!(buf, off_ptr, 76);
+    diag_poke_ch!(buf, off_ptr, 73); diag_poke_ch!(buf, off_ptr, 77); diag_poke_ch!(buf, off_ptr, 58);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 80); diag_poke_ch!(buf, off_ptr, 65);
+    diag_poke_ch!(buf, off_ptr, 83); diag_poke_ch!(buf, off_ptr, 83); diag_poke_ch!(buf, off_ptr, 93);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 65); diag_poke_ch!(buf, off_ptr, 108);
+    diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 99);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 97); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 99); diag_poke_ch!(buf, off_ptr, 104); diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 99);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 117); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 97); diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 99); diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 97); diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 97); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 102);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 100);
+    diag_poke_ch!(buf, off_ptr, 46); diag_poke_ch!(buf, off_ptr, 10);
+    total_len = off_ptr@[0];
+    sys_write!(1, buf, total_len);
+    ret 0;
+]
+
+fn diag_print_usage!(buf) [
+    off_ptr = buf + 3500;
+    off_ptr@[0] = 0;
+    // "Usage: slim help\n"
+    diag_poke_ch!(buf, off_ptr, 85); diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 97);
+    diag_poke_ch!(buf, off_ptr, 103); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 58);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 108);
+    diag_poke_ch!(buf, off_ptr, 105); diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 104); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 108);
+    diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 10);
+    total_len = off_ptr@[0];
+    sys_write!(2, buf, total_len);
+    ret 0;
+]
+
+fn diag_print_open_err!(buf) [
+    off_ptr = buf + 3500;
+    off_ptr@[0] = 0;
+    // "Error: unable to open target source file\n"
+    diag_poke_ch!(buf, off_ptr, 69); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 58);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 117); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 97); diag_poke_ch!(buf, off_ptr, 98); diag_poke_ch!(buf, off_ptr, 108);
+    diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 116);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 111);
+    diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 102); diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 10);
+    total_len = off_ptr@[0];
+    sys_write!(2, buf, total_len);
+    ret 0;
+]
+
+fn diag_print_missing_arg!(buf) [
+    off_ptr = buf + 3500;
+    off_ptr@[0] = 0;
+    // "Error: missing target argument\n"
+    diag_poke_ch!(buf, off_ptr, 69); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 58);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 115); diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 103); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 97); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 103);
+    diag_poke_ch!(buf, off_ptr, 117); diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 101);
+    diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 10);
+    total_len = off_ptr@[0];
+    sys_write!(2, buf, total_len);
+    ret 0;
+]
+
+fn diag_print_empty_err!(buf) [
+    off_ptr = buf + 3500;
+    off_ptr@[0] = 0;
+    // "Error: file is empty or unreadable\n"
+    diag_poke_ch!(buf, off_ptr, 69); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 58);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 109);
+    diag_poke_ch!(buf, off_ptr, 112); diag_poke_ch!(buf, off_ptr, 116); diag_poke_ch!(buf, off_ptr, 121);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 102); diag_poke_ch!(buf, off_ptr, 105);
+    diag_poke_ch!(buf, off_ptr, 108); diag_poke_ch!(buf, off_ptr, 101); diag_poke_ch!(buf, off_ptr, 10);
+    total_len = off_ptr@[0];
+    sys_write!(2, buf, total_len);
+    ret 0;
+]
+
+fn diag_print_unknown_cmd!(buf) [
+    off_ptr = buf + 3500;
+    off_ptr@[0] = 0;
+    // "Error: unknown subcommand\n"
+    diag_poke_ch!(buf, off_ptr, 69); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 114);
+    diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 114); diag_poke_ch!(buf, off_ptr, 58);
+    diag_poke_ch!(buf, off_ptr, 32); diag_poke_ch!(buf, off_ptr, 117); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 107); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 111);
+    diag_poke_ch!(buf, off_ptr, 119); diag_poke_ch!(buf, off_ptr, 110); diag_poke_ch!(buf, off_ptr, 32);
+    diag_poke_ch!(buf, off_ptr, 99); diag_poke_ch!(buf, off_ptr, 111); diag_poke_ch!(buf, off_ptr, 109);
+    diag_poke_ch!(buf, off_ptr, 109); diag_poke_ch!(buf, off_ptr, 97); diag_poke_ch!(buf, off_ptr, 110);
+    diag_poke_ch!(buf, off_ptr, 100); diag_poke_ch!(buf, off_ptr, 10);
+    total_len = off_ptr@[0];
+    sys_write!(2, buf, total_len);
+    ret 0;
+]

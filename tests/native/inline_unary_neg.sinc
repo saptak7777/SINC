@@ -1,0 +1,16 @@
+// EXPECT: 42
+// Test: Inlining a leaf function that computes unary negation (-x)
+fn neg_leaf(x) [
+    ret -x;
+]
+
+fn test_inlined_neg(val) [
+    n1 = neg_leaf(val);
+    n2 = neg_leaf(n1);
+    diff = n2 - n1;
+    ret diff + 22;
+]
+
+fn main() [
+    ret test_inlined_neg(10);
+]

@@ -1,0 +1,9 @@
+// EXPECT: 65
+// Test: 3-term chained addition inside a loop
+fn main() [
+    x = 10;
+    loop (i:10 = 0 .. 10) [
+        x = x + i + 1;
+    ]
+    ret (x & 255);
+]

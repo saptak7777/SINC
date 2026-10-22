@@ -1,0 +1,49 @@
+// ==========================================
+// steel/sys/arena.sinc
+// S.T.E.E.L. Linear Bump Allocator
+// ==========================================
+
+// Constant lenses (word offsets)
+const ARENA_START = 0; // Start address of allocatable space
+const ARENA_NEXT  = 1; // Current pointer to next free allocation
+const ARENA_LIMIT = 2; // End limit of the memory page
+
+fn arena_init!(mem~, size) [
+    // Consume the linear page pointer and initialize metadata
+    arena = mem~;
+    arena.ARENA_START = arena + 24;
+    arena.ARENA_NEXT  = arena + 24;
+    arena.ARENA_LIMIT = arena + size;
+    ret arena;
+]
+
+fn arena_alloc!(arena, bytes) [
+    // 8-byte alignment calculation: ((bytes + 7) >> 3) << 3
+    aligned_bytes = ((bytes + 7) >> 3) << 3;
+    current_next = arena.ARENA_NEXT;
+    limit = arena.ARENA_LIMIT;
+    
+    if (current_next + aligned_bytes > limit) [
+        // Out of memory return null address (0)
+        ret 0;
+    ]
+    
+    // Bump next pointer and return allocated block start
+    arena.ARENA_NEXT = current_next + aligned_bytes;
+    ret current_next;
+]
+
+fn arena_alloc_words!(arena, count) [
+    ret arena_alloc!(arena, count * 8);
+]
+
+fn arena_reset!(arena) [
+    // Reset bump pointer back to allocation start
+    arena.ARENA_NEXT = arena.ARENA_START;
+    ret 0;
+]
+
+fn arena_avail(arena) [
+    // Returns remaining free memory in bytes (pure calculation)
+    ret arena.ARENA_LIMIT - arena.ARENA_NEXT;
+]

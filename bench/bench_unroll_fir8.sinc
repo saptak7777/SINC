@@ -1,0 +1,10 @@
+fn main() [
+    acc = 0;
+    loop (sample:5000000 = 0 .. 5000000) [
+        loop (tap:8 = 0 .. 8) [
+            term = tap * 5 + 3;
+            acc = acc + term;
+        ]
+    ]
+    ret acc & 255;
+]

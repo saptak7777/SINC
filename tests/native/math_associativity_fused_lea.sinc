@@ -1,0 +1,22 @@
+// EXPECT: 38
+// REQUIRE_INSN: lea
+// Test: Direct 3-address LEA emission without register destruction
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn run_lea(x, y) [
+    a = x + 5;
+    b = y + 7;
+    ret a + b + x - 14;
+]
+
+fn main() [
+    x = helper(10);
+    y = helper(20);
+    ret run_lea(x, y) & 255;
+]

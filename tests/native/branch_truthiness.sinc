@@ -1,0 +1,9 @@
+// EXPECT: 19
+fn main() [
+    value = 3;
+    if (value) [
+        ret 19;
+    ] else [
+        ret 2;
+    ]
+]

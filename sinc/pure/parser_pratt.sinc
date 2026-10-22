@@ -1,0 +1,248 @@
+// ==========================================
+// sinc/pure/parser_pratt.sinc
+// SINC Compiler: Pratt Expression Precedence Table
+// ==========================================
+
+fn parser_init_pratt!(lut) [
+    // 1. Terminate non-operator indices (default 0)
+    loop (i:10000000 = 0 .. 256) [
+        lut@[i] = 0;
+    ]
+
+    // 2. Addition / Subtraction
+    lut@[18] = 13 | (14 << 8) | (IR_OP_BIN << 16) | (0 << 24); // T_PLUS
+    lut@[19] = 13 | (14 << 8) | (IR_OP_BIN << 16) | (1 << 24); // T_MINUS
+
+    // 3. Multiplication / Division
+    lut@[20] = 15 | (16 << 8) | (IR_OP_BIN << 16) | (2 << 24); // T_STAR
+    lut@[21] = 15 | (16 << 8) | (IR_OP_BIN << 16) | (3 << 24); // T_SLASH
+
+    // 4. Bitwise Operators
+    lut@[23] = 9  | (10 << 8) | (IR_OP_BIN << 16) | (4 << 24); // T_AND
+    lut@[24] = 7  | (8  << 8) | (IR_OP_BIN << 16) | (5 << 24); // T_PIPE
+    lut@[25] = 9  | (10 << 8) | (IR_OP_BIN << 16) | (6 << 24); // T_CARET
+    lut@[34] = 11 | (12 << 8) | (IR_OP_BIN << 16) | (7 << 24); // T_SHL
+    lut@[35] = 11 | (12 << 8) | (IR_OP_BIN << 16) | (8 << 24); // T_SHR
+
+    // 5. Comparison Operators
+    lut@[30] = 5  | (6  << 8) | (IR_OP_CMP << 16) | (0 << 24); // T_EQEQ
+    lut@[31] = 5  | (6  << 8) | (IR_OP_CMP << 16) | (1 << 24); // T_NEQ
+    lut@[32] = 5  | (6  << 8) | (IR_OP_CMP << 16) | (2 << 24); // T_LT
+    lut@[33] = 5  | (6  << 8) | (IR_OP_CMP << 16) | (3 << 24); // T_GT
+
+    ret 0;
+]
+
+fn fresh_val!(counter) [
+    c = counter@[0];
+    counter@[0] = c + 1;
+    ret c;
+]
+
+fn parse_expr!(min_bp, ctx, bindings, inst_count) [
+    out_token   = ctx@[3];
+    const_table = ctx@[10];
+    pratt_lut   = ctx@[1];
+    cont_tape   = ctx@[19];
+    sp          = 0;
+    lhs         = -1;
+    argc        = 0;
+
+    loop (step:10000000 = 0 .. 10000000) [
+        tok_type  = out_token.TOK_TYPE;
+        push_w0   = 0;
+        next_bp   = 0;
+        call_mode = 0;
+
+        if ((lhs < 0) | (tok_type == 16)) [
+            if (tok_type == 11) [
+                lexer_advance!(ctx);
+                push_w0 = 1;
+            ]
+            if ((tok_type == 19) | (tok_type == 26)) [
+                lexer_advance!(ctx);
+                push_w0 = 4 | ((IR_OP_CMP + ((tok_type == 19) * 7)) << 16);
+                next_bp = 19;
+            ]
+            if (tok_type == 10) [
+                lhs = out_token.TOK_VAL;
+                lexer_advance!(ctx);
+            ]
+            if (tok_type == 16) [
+                lexer_advance!(ctx);
+                if (out_token.TOK_TYPE != 9) [
+                    sys_exit!(8);
+                ]
+                tok_type = 9;
+            ]
+            if (tok_type == 9) [
+                sym_id    = out_token.TOK_VAL;
+                tok_flags = out_token.TOK_FLAGS;
+                idx       = sym_id * 2;
+                lexer_advance!(ctx);
+
+                if (const_table@[idx] == 1) [
+                    if (lhs < 0) [
+                        lhs      = const_table@[(idx + 1)];
+                        tok_type = 10;
+                    ] else [
+                        dst        = fresh_val!(ctx@[9]);
+                        inst_count = ir_emit_raw!(ctx@[8], inst_count, IR_OP_LOAD_IND, 0, dst, lhs, -1, const_table@[(idx + 1)] * 8, 0);
+                        lhs        = dst;
+                    ]
+                ] else [
+                    if ((lhs < 0) & (out_token.TOK_TYPE != 11)) [
+                        type_payload = tok_flags >> 32;
+                        t_mode       = ((out_token.TOK_TYPE == 28) | (out_token.TOK_TYPE == 16) | (out_token.TOK_TYPE == 17)) * 2;
+                        ctx@[17]     = ((tok_flags & FLAG_LINEAR) != 0) & ((type_payload > 0) | ((bindings@[sym_id] & 255) == 2));
+                        lhs          = bindings_touch!(ctx@[15], bindings, sym_id, t_mode, ctx@[17], type_payload, fresh_val!(ctx@[9]));
+                        ctx@[18]     = (bindings@[sym_id] >> 32) & 4294967295;
+                    ] else [
+                        if ((ctx@[11] != 0) & ((tok_flags & 2) == 0)) [
+                            sys_exit!(5);
+                        ]
+                        args_ptr = arena_alloc_words!(ctx@[14], 32);
+                        if (args_ptr == 0) [
+                            sys_exit!(98);
+                        ]
+                        args_ptr@[0]         = lhs;
+                        argc                 = !(lhs < 0);
+                        cont_tape@[(sp + 1)] = sym_id;
+                        cont_tape@[(sp + 2)] = tok_flags;
+                        cont_tape@[(sp + 3)] = args_ptr;
+                        call_mode            = 3;
+                        if (out_token.TOK_TYPE == 11) [
+                            lexer_advance!(ctx);
+                            call_mode = 2;
+                        ]
+                    ]
+                ]
+            ]
+            if (tok_type == 10) [
+                val        = lhs;
+                lhs        = fresh_val!(ctx@[9]);
+                c_lo       = val * ((val > 0) & (val < 1073741824));
+                inst_count = ir_emit_raw!(ctx@[8], inst_count, IR_OP_CONST, 0, lhs, 0, 0, val, c_lo | (c_lo << 32));
+            ]
+            if ((lhs < 0) & (push_w0 == 0) & (call_mode == 0)) [
+                sys_exit!(7);
+            ]
+        ] else [
+            cont_tape@[(sp + 1)] = lhs;
+            if (tok_type == 28) [
+                lexer_advance!(ctx);
+                if (out_token.TOK_TYPE == 13) [
+                    lexer_advance!(ctx);
+                    cont_tape@[(sp + 2)] = ctx@[18];
+                    cont_tape@[(sp + 3)] = inst_count;
+                    push_w0              = 3 | (ctx@[17] << 16);
+                    next_bp              = 16;
+                ] else [
+                    dst        = fresh_val!(ctx@[9]);
+                    inst_count = ir_emit_raw!(ctx@[8], inst_count, IR_OP_LOAD_IND | (ctx@[17] * FLAG_LINEAR_NO_ALIAS), 0, dst, lhs, -1, 0, ctx@[18]);
+                    lhs        = dst;
+                ]
+                ctx@[17] = 0;
+                ctx@[18] = 0;
+            ] else [
+                op_data = pratt_lut@[tok_type];
+
+                if ((op_data != 0) & (!((op_data & 255) < min_bp))) [
+                    lexer_advance!(ctx);
+                    push_w0 = 5 | (op_data & -65536);
+                    next_bp = (op_data >> 8) & 255;
+                ] else [
+                    if (sp == 0) [
+                        ret (lhs << 32) | inst_count;
+                    ]
+                    sp        = sp - 4;
+                    fw0       = cont_tape@[sp];
+                    f_kind    = fw0 & 255;
+                    min_bp    = (fw0 >> 8) & 255;
+                    op_meta   = (fw0 >> 16) & 255;
+                    aux       = (fw0 >> 24) & 255;
+                    rng       = (op_meta == 5) << 32;
+                    call_mode = f_kind * (f_kind < 3);
+
+                    if (f_kind == 2) [
+                        cont_tape@[(sp + 3)]@[op_meta] = lhs;
+                        argc                           = op_meta + 1;
+                        if (tok_type == 15) [
+                            lexer_advance!(ctx);
+                        ]
+                    ]
+                    if (f_kind == 3) [
+                        rng       = cont_tape@[(sp + 2)];
+                        idx_start = cont_tape@[(sp + 3)];
+
+                        if (rng > 0) [
+                            idx_bound = ctx@[18] * (inst_count == idx_start);
+                            if ((inst_count > idx_start) & ((ctx@[8]@[(inst_count * 4 - 4)] & 255) == 1)) [
+                                idx_bound = ctx@[8]@[(inst_count * 4 - 2)] + 1;
+                            ]
+                            if ((idx_bound < 1) | (idx_bound > rng)) [
+                                sys_exit!(15);
+                            ]
+                        ]
+                        ctx@[18] = 0;
+
+                        if (out_token.TOK_TYPE == 20) [
+                            lexer_advance!(ctx);
+                            aux = 8;
+                            if (out_token.TOK_TYPE == 10) [
+                                aux = out_token.TOK_VAL;
+                                lexer_advance!(ctx);
+                            ]
+                        ]
+                        if (out_token.TOK_TYPE != 14) [
+                            sys_exit!(7);
+                        ]
+                        lexer_advance!(ctx);
+                        op_meta = IR_OP_LOAD_IND | (op_meta * FLAG_LINEAR_NO_ALIAS);
+                    ]
+                    if (f_kind == 4) [
+                        cont_tape@[(sp + 1)] = lhs;
+                        lhs                  = 0;
+                        if (op_meta == 5) [
+                            lhs        = fresh_val!(ctx@[9]);
+                            inst_count = ir_emit_raw!(ctx@[8], inst_count, IR_OP_CONST, 0, lhs, 0, 0, 0, 0);
+                        ]
+                    ]
+                    if (f_kind > 2) [
+                        dst        = fresh_val!(ctx@[9]);
+                        inst_count = ir_emit_raw!(ctx@[8], inst_count, op_meta, aux, dst, cont_tape@[(sp + 1)], lhs, 0, rng);
+                        lhs        = dst;
+                    ]
+                ]
+            ]
+        ]
+
+        if ((call_mode == 2) & (argc < 32) & (out_token.TOK_TYPE != 12) & (out_token.TOK_TYPE != 0)) [
+            push_w0   = 2 | (argc << 16);
+            call_mode = 0;
+        ]
+        if ((call_mode == 1) | (call_mode == 2)) [
+            if (out_token.TOK_TYPE != 12) [
+                sys_exit!(7);
+            ]
+            lexer_advance!(ctx);
+        ]
+        if (push_w0 != 0) [
+            cont_tape@[sp] = push_w0 | (min_bp << 8);
+            sp             = sp + 4;
+            min_bp         = next_bp;
+            lhs            = -1;
+        ]
+        if (call_mode > 1) [
+            call_idx       = fresh_val!(ctx@[13]);
+            call_entry     = ctx@[12] + (call_idx * 24);
+            call_entry@[0] = cont_tape@[(sp + 1)];
+            call_entry@[1] = argc;
+            call_entry@[2] = cont_tape@[(sp + 3)];
+            is_pure        = (cont_tape@[(sp + 2)] & 2) >> 1;
+            lhs            = fresh_val!(ctx@[9]);
+            inst_count     = ir_emit_raw!(ctx@[8], inst_count, IR_OP_CALL | ((is_pure == 0) * (EFFECT_EXTERNAL << 48)), is_pure, lhs, 0, 0, call_idx, 0);
+        ]
+    ]
+    ret (lhs << 32) | inst_count;
+]

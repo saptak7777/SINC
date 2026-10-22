@@ -1,0 +1,6 @@
+// tests/staff/fixtures/missing_artifact.staff
+sources [
+    data = [
+        tests/staff/fixtures/src/data/constants.sinc;
+    ];
+]

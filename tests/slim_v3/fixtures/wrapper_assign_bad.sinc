@@ -1,0 +1,14 @@
+// fixture: wrapper_assign_bad.sinc — assignment forwarder wrapper
+fn target(x, y) [
+    ret x * y;
+]
+
+fn wrap_assign(a, b) [
+    res = target(a, b);
+    ret res;
+]
+
+fn main(a, b) [
+    v = wrap_assign(a, b);
+    ret v;
+]

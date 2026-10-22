@@ -1,0 +1,14 @@
+// EXPECT: 95
+// Test: Conditional branching and value selection
+fn test_predicated_lane_blend(condition, true_val, false_val) [
+    if (condition != 0) [
+        ret true_val;
+    ]
+    ret false_val;
+]
+
+fn main() [
+    t1 = test_predicated_lane_blend(1, 45, 10);
+    t2 = test_predicated_lane_blend(0, 20, 50);
+    ret t1 + t2;
+]

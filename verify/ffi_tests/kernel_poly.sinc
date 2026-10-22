@@ -1,0 +1,3 @@
+fn poly3(a, b, c) [
+    ret (a * a) + (b * c) + 42;
+]

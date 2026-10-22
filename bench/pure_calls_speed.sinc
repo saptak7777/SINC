@@ -1,0 +1,13 @@
+fn pure_hash(x) [
+    ret ((x * 1103515245 + 12345) >> 16) & 65535;
+]
+
+fn bench_pure() [
+    sum = 0;
+    loop (idx:100000000 = 0 .. 100000000) [
+        h1 = pure_hash(idx & 1023);
+        h2 = pure_hash(idx & 1023);
+        sum = sum + (h1 ^ h2) + h1;
+    ]
+    ret sum;
+]

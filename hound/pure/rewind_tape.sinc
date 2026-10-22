@@ -1,0 +1,20 @@
+// ==========================================
+// hound/pure/rewind_tape.sinc
+// HOUND: The SINC Hardware Logic Probe
+// Pure Clock Rewind Ring Buffer Mathematics
+// ==========================================
+
+const REWIND_CAPACITY = 64; // Max 64 historical states
+
+fn rewind_ring_next(head) [
+    ret (head + 1) & (REWIND_CAPACITY - 1);
+]
+
+fn rewind_ring_prev(head) [
+    ret (head - 1 + REWIND_CAPACITY) & (REWIND_CAPACITY - 1);
+]
+
+fn rewind_has_history(head, count) [
+    if (count > 0) [ ret 1; ]
+    ret 0;
+]

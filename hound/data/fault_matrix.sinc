@@ -1,0 +1,28 @@
+// ==========================================
+// hound/data/fault_matrix.sinc
+// HOUND: The SINC Hardware Logic Probe
+// SINC 64-Bit Death Vector & Fault Matrix
+// ==========================================
+
+// --- Bit Allocation Masks & Shifts ---
+const DEATH_MASK_DOMAIN   = 255;
+const DEATH_MASK_FAULT    = 255;
+const DEATH_SHIFT_FAULT   = 8;
+const DEATH_SHIFT_OFFSET  = 16;
+
+// --- Physical Machine Domains (Bits 0..7) ---
+const DOMAIN_MMU          = 1; // Physical Memory / Bounds
+const DOMAIN_ALU          = 2; // Mathematical / Word Packing
+const DOMAIN_OS           = 3; // External World / Syscall Gateway
+
+// --- Domain 1: MMU Faults (Bits 8..15) ---
+const FAULT_ZERO_BASE     = 1; // Unhandled 0 allocation write (Missing if check)
+const FAULT_ARENA_BREACH  = 2; // Write offset exceeded [HEAP: N] limit
+
+// --- Domain 2: ALU Faults (Bits 8..15) ---
+const FAULT_WORD_FRACTURE = 1; // Overlapping bit shift / mask collision
+const FAULT_LENS_MISALIGN = 2; // Offset misaligned with constant lens
+const FAULT_PURE_LOGIC_TRAP = 3; // Math comparator failure
+
+// --- Domain 3: OS Faults (Bits 8..15) ---
+const FAULT_GATEWAY_REJECT = 1; // Linux returned negative errno

@@ -1,0 +1,19 @@
+// EXPECT: 95
+// Test: Phase 5 LICM — Multi-level nested loop invariant hoisting
+fn main() [
+    a = 3;
+    b = 7;
+    c = 11;
+    sum = 0;
+    loop (i:5 = 0 .. 5) [
+        // Invariant to outer and inner loop:
+        outer_inv = a * 13 + b * 17;
+        loop (j:5 = 0 .. 5) [
+            // Invariant to inner loop (depends on outer_inv and c):
+            inner_inv = outer_inv + c * 23;
+            sum = sum + inner_inv + j;
+        ]
+        sum = sum + i;
+    ]
+    ret sum & 255;
+]

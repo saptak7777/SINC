@@ -1,0 +1,46 @@
+// ==========================================
+// steel/pure/ctype.sinc
+// S.T.E.E.L. Character Classification Engine
+// ==========================================
+
+const CTYPE_MASK_OP_ID     = 255;  // (Bits 0-7)
+const CTYPE_WHITESPACE     = 256;  // (Bit 8)
+const CTYPE_DIGIT          = 512;  // (Bit 9)
+const CTYPE_IDENT_START    = 1024; // (Bit 10)
+const CTYPE_IDENT_CONTINUE = 2048; // (Bit 11)
+const CTYPE_NEWLINE        = 4096; // (Bit 12)
+
+fn ctype_init!(lut) [
+    // 1. Initialize all 256 entries to 0
+    loop (i:10000000 = 0 .. 256) [
+        lut@[i] = 0;
+    ]
+
+    // 2. Whitespace (' ' = 32, '\t' = 9, '\r' = 13) -> 256 (CTYPE_WHITESPACE)
+    lut@[32] = lut@[32] | 256;
+    lut@[9]  = lut@[9]  | 256;
+    lut@[13] = lut@[13] | 256;
+
+    // 3. Newline ('\n' = 10) triggers both whitespace and newline flags -> 256 | 4096 = 4352
+    lut@[10] = lut@[10] | 4352;
+
+    // 4. Digits ('0'..'9' = 48..57) are digit + ident-continue -> 512 | 2048 = 2560
+    loop (d:10000000 = 48 .. 58) [
+        lut@[d] = lut@[d] | 2560;
+    ]
+
+    // 5. Lowercase letters ('a'..'z' = 97..122) are ident-start + ident-continue -> 1024 | 2048 = 3072
+    loop (c:10000000 = 97 .. 123) [
+        lut@[c] = lut@[c] | 3072;
+    ]
+
+    // 6. Uppercase letters ('A'..'Z' = 65..90) are ident-start + ident-continue -> 1024 | 2048 = 3072
+    loop (c:10000000 = 65 .. 91) [
+        lut@[c] = lut@[c] | 3072;
+    ]
+
+    // 7. Underscore ('_' = 95) is ident-start + ident-continue -> 3072
+    lut@[95] = lut@[95] | 3072;
+
+    ret 0;
+]

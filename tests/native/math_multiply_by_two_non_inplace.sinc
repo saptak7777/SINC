@@ -1,0 +1,11 @@
+// EXPECT: 45
+// Test: Non-in-place multiplication by 2 preserving the original register
+fn main() [
+    total = 0;
+    loop (i:10 = 0 .. 10) [
+        doubled = i * 2;
+        diff = doubled - i;
+        total = total + diff;
+    ]
+    ret total;
+]

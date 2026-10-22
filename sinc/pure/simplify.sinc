@@ -1,0 +1,278 @@
+// ==========================================
+// sinc/pure/simplify.sinc
+// SINC Compiler: Constant Folding & Range Propagation Pass
+// ==========================================
+
+const SIMP_INT_MIN = 9223372036854775808;
+
+fn simp_fold_eval!(opcode, aux, a, b) [
+    if (opcode == 12) [ // NEG
+        ret -a;
+    ]
+    if (opcode == 5) [ // CMP
+        if (aux == 0) [
+            ret (a == b);
+        ]
+        if (aux == 1) [
+            ret (a != b);
+        ]
+        if (aux == 2) [
+            ret (a < b);
+        ]
+        ret (a > b);
+    ]
+    if (aux == 0) [ // BIN_ADD
+        ret a + b;
+    ]
+    if (aux == 1) [ // BIN_SUB
+        ret a - b;
+    ]
+    if (aux == 2) [ // BIN_MUL
+        ret a * b;
+    ]
+    if (aux == 3) [ // BIN_DIV
+        if (b == 0) [
+            sys_exit!(1);
+        ]
+        ret a / b;
+    ]
+    if (aux == 4) [ // BIN_AND
+        ret a & b;
+    ]
+    if (aux == 5) [ // BIN_OR
+        ret a | b;
+    ]
+    if (aux == 6) [ // BIN_XOR
+        ret a ^ b;
+    ]
+    if ((b < 0) | (b > 63)) [
+        sys_exit!(16);
+    ]
+    if (aux == 7) [
+        ret a << b;
+    ]
+    ret a >> b;
+]
+
+fn simp_resolve_alias!(src, def_off, tape_ptr, last_branch) [
+    if (src != 4294967295) [
+        d_off = def_off@[src];
+        if ((d_off != 4294967295) & (d_off > last_branch)) [
+            dw0 = tape_ptr@[d_off];
+            if ((dw0 & 255) == 9) [ // IR_OP_UPDATE
+                root = tape_ptr@[(d_off + 1)] & 4294967295;
+                if (!(def_off@[root] > d_off)) [
+                    ret root;
+                ]
+            ]
+        ]
+    ]
+    ret src;
+]
+
+fn simp_read_const!(r, def_off, tape_ptr) [
+    if (r != 4294967295) [
+        d_off = def_off@[r];
+        if (d_off != 4294967295) [
+            if ((tape_ptr@[d_off] & 255) == 1) [
+                ret tape_ptr@[(d_off + 2)];
+            ]
+        ]
+    ]
+    ret SIMP_INT_MIN;
+]
+
+fn simp_rewrite_const!(tape_ptr, offset, dst, val, def_off) [
+    tape_ptr@[offset]       = 1 | (dst << 16) | (2 << 56) | (tape_ptr@[offset] & (65535 << 32));
+    tape_ptr@[(offset + 1)] = -1;
+    tape_ptr@[(offset + 2)] = val;
+    c_lo = val * ((val > 0) & (val < 1073741824));
+    tape_ptr@[(offset + 3)] = c_lo | (c_lo << 32);
+    ret 0;
+]
+
+fn simp_rewrite_update!(tape_ptr, offset, dst, src, def_off) [
+    tape_ptr@[offset]       = 9 | (dst << 16);
+    tape_ptr@[(offset + 1)] = src | (-1 << 32);
+    tape_ptr@[(offset + 2)] = 0;
+    if (def_off@[src] != 4294967295) [
+        tape_ptr@[(offset + 3)] = tape_ptr@[(def_off@[src] + 3)];
+    ]
+    ret 0;
+]
+
+fn ir_simplify!(func, global_scratch_tape) [
+    tape_ptr = func@[0];
+    tape_len = func@[1];
+    max_reg  = func@[2];
+
+    def_off = global_scratch_tape;
+    loop (i:10000000 = 0 .. (max_reg + 1)) [
+        def_off@[i] = 4294967295;
+    ]
+
+    last_branch = -1;
+    loop (idx:10000000 = 0 .. tape_len) [
+        offset = idx * 4;
+        w0 = tape_ptr@[offset];
+        w1 = tape_ptr@[(offset + 1)];
+        opcode = w0 & 255;
+        aux    = (w0 >> 8) & 255;
+        dst    = (w0 >> 16) & 65535;
+        src1   = w1 & 4294967295;
+        src2   = (w1 >> 32) & 4294967295;
+
+        if (opcode != 0) [
+            // Branch boundary updates & forward constant branch elimination
+            if ((opcode == 10) | (opcode == 11)) [
+                last_branch = offset;
+                if (opcode == 11) [
+                    w2 = tape_ptr@[(offset + 2)];
+                    then_tgt = w2 & 4294967295;
+                    else_tgt = (w2 >> 32) & 4294967295;
+                    if ((then_tgt > idx) & (else_tgt > idx)) [
+                        c_val = simp_read_const!(src1, def_off, tape_ptr);
+                        if (c_val != SIMP_INT_MIN) [
+                            tgt = else_tgt;
+                            if (c_val != 0) [
+                                tgt = then_tgt;
+                            ]
+                            new_op = 10 * (tgt != (idx + 1));
+                            tape_ptr@[offset] = new_op;
+                            tape_ptr@[(offset + 1)] = -1;
+                            tape_ptr@[(offset + 2)] = tgt * (tgt != (idx + 1));
+                            opcode = new_op;
+                        ]
+                    ]
+                ]
+            ]
+
+            // Forward active copy updates (IR_OP_UPDATE) directly via tape monotonicity
+            orig_src1 = src1;
+            orig_src2 = src2;
+            src1 = simp_resolve_alias!(src1, def_off, tape_ptr, last_branch);
+            src2 = simp_resolve_alias!(src2, def_off, tape_ptr, last_branch);
+            if ((src1 != orig_src1) | (src2 != orig_src2)) [
+                tape_ptr@[(offset + 1)] = src1 | (src2 << 32);
+            ]
+
+            // Record physical definition offset on the tape
+            if (dst != 65535) [
+                def_off@[dst] = offset;
+            ]
+
+            // Inherit interval range on explicit copy updates (IR_OP_UPDATE)
+            if ((opcode == 9) & (tape_ptr@[(offset + 3)] == 0) & (def_off@[src1] != 4294967295)) [
+                tape_ptr@[(offset + 3)] = tape_ptr@[(def_off@[src1] + 3)];
+            ]
+
+            // Unified constant evaluation & interval refinement gateway
+            if ((opcode == 4) | (opcode == 5) | (opcode == 12)) [
+                a_val = simp_read_const!(src1, def_off, tape_ptr);
+                b_val = simp_read_const!(src2, def_off, tape_ptr);
+                can_fold = (a_val != SIMP_INT_MIN) & ((opcode == 12) | (b_val != SIMP_INT_MIN));
+                if (can_fold != 0) [
+                    simp_rewrite_const!(tape_ptr, offset, dst, simp_fold_eval!(opcode, aux, a_val, b_val), def_off);
+                ] else [
+                    handled = 0;
+                    if (opcode == 4) [
+                        if ((b_val == SIMP_INT_MIN) & (a_val != SIMP_INT_MIN) & ((aux == 0) | (aux == 2) | (aux == 4) | (aux == 5) | (aux == 6))) [
+                            b_val = a_val;
+                            a_val = SIMP_INT_MIN;
+                            src1 = src2;
+                            src2 = (w1 & 4294967295);
+                            tape_ptr@[(offset + 1)] = src1 | (src2 << 32);
+                        ]
+                        if ((((aux == 0) | (aux == 5) | (aux == 6)) & (b_val == 0)) | (((aux == 2) | (aux == 3)) & (b_val == 1)) | ((b_val == SIMP_INT_MIN) & (src1 == src2) & ((aux == 4) | (aux == 5)))) [
+                            simp_rewrite_update!(tape_ptr, offset, dst, src1, def_off);
+                            handled = 1;
+                        ]
+                        if ((handled == 0) & (((b_val == SIMP_INT_MIN) & (src1 == src2) & ((aux == 6) | (aux == 1))) | (((aux == 2) | (aux == 4)) & ((a_val == 0) | (b_val == 0))))) [
+                            simp_rewrite_const!(tape_ptr, offset, dst, 0, def_off);
+                            handled = 1;
+                        ]
+
+
+                        if ((handled == 0) & (aux == 2) & (b_val > 1) & ((b_val & (b_val - 1)) == 0)) [
+                            if (b_val == 2) [
+                                aux = 0;
+                                src2 = src1;
+                                b_val = SIMP_INT_MIN;
+                                tape_ptr@[offset]       = 4 | (dst << 16) | (w0 & (65535 << 32));
+                                tape_ptr@[(offset + 1)] = src1 | (src1 << 32);
+                            ] else [
+                                k = 0;
+                                pv = b_val;
+                                loop (si:64 = 0 .. 64) [
+                                    if (pv > 1) [
+                                        pv = pv >> 1;
+                                        k = k + 1;
+                                    ]
+                                ]
+                                tape_ptr@[offset]       = 4 | (7 << 8) | (dst << 16) | (2 << 56) | (w0 & (65535 << 32));
+                                tape_ptr@[(offset + 2)] = k;
+                                handled = 1;
+                            ]
+                        ]
+
+                        // Continuous Interval Flow (Word 3 Refinement Propagation)
+                        if ((handled == 0) & (aux == 4)) [ // BIN_AND
+                            if (b_val > 0) [
+                                tape_ptr@[(offset + 3)] = b_val << 32;
+                                d_shr = def_off@[src1];
+                                if (d_shr != 4294967295) [
+                                    // 2052 = BIN_SHR (8 << 8 | 4); fuses (x << shl) >> shr & mask when shr >= shl
+                                    if (((tape_ptr@[d_shr] & 65535) == 2052) & (b_val < (1 << (64 - tape_ptr@[(d_shr + 2)])))) [
+                                        src_shr = tape_ptr@[(d_shr + 1)] & 4294967295;
+                                        d_shl = def_off@[src_shr];
+                                        if (d_shl != 4294967295) [
+                                            // 1796 = BIN_SHL (7 << 8 | 4)
+                                            if (((tape_ptr@[d_shl] & 65535) == 1796) & (!(tape_ptr@[(d_shr + 2)] < tape_ptr@[(d_shl + 2)]))) [
+                                                root = tape_ptr@[(d_shl + 1)] & 4294967295;
+                                                tape_ptr@[(d_shr + 1)] = root | (root << 32);
+                                                tape_ptr@[(d_shr + 2)] = tape_ptr@[(d_shr + 2)] - tape_ptr@[(d_shl + 2)];
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                        if ((handled == 0) & ((aux == 0) | (aux == 1)) & (src2 != 4294967295)) [
+                            d1 = def_off@[src1];
+                            d2 = def_off@[src2];
+                            if ((d1 != 4294967295) & (d2 != 4294967295)) [
+                                r1 = tape_ptr@[(d1 + 3)];
+                                r2 = tape_ptr@[(d2 + 3)];
+                                if ((r1 != 0) & (r2 != 0)) [
+                                    lo1 = r1 & 4294967295;
+                                    hi1 = (r1 >> 32) & 4294967295;
+                                    lo2 = r2 & 4294967295;
+                                    hi2 = (r2 >> 32) & 4294967295;
+                                    if (aux == 0) [
+                                        tape_ptr@[(offset + 3)] = (lo1 + lo2) | ((hi1 + hi2) << 32);
+                                    ] else [
+                                        n_lo = 0;
+                                        if (lo1 > hi2) [
+                                            n_lo = lo1 - hi2;
+                                        ]
+                                        if (hi1 > lo2) [
+                                            tape_ptr@[(offset + 3)] = n_lo | ((hi1 - lo2) << 32);
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                    if ((((opcode == 4) & (handled == 0)) | (opcode == 5)) & ((((w0 >> 32) & 65535) != 1) | ((aux == 7) | (aux == 8)))) [
+                        if ((b_val > -2147483649) & (b_val < 2147483648)) [
+                            tape_ptr@[offset] = tape_ptr@[offset] | (2 << 56);
+                            tape_ptr@[(offset + 2)] = b_val;
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+    ret 0;
+]
