@@ -23,7 +23,7 @@ echo $?
 | **`5`** | **Purity Violation / Missing `;`** | Calling an impure function (`!`) from a pure scope, or missing statement semicolon. | `sinc/pure/parser_pratt.sinc` |
 | **`6`** | **Invalid Top-Level Item** | Top-level item other than `fn`, `extern`, or `const`. | `sinc/sys/parser.sinc` |
 | **`7`** | **Expression Syntax** | Operator precedence parsing failure, unbalanced parentheses, or misplaced operator. | `sinc/pure/parser_pratt.sinc` |
-| **`8`** | **Use-After-Move** | Attempting to read or move a linear variable that has already been consumed. | `sinc/pure/parser_bindings.sinc` |
+| **`8`** | **Use-After-Move / Unbound Read** | Attempting to read/move a consumed linear variable, or reading an unbound/forward identifier. | `sinc/pure/parser_bindings.sinc` |
 | **`10`** | **No Functions Defined** | Input program contains zero function definitions (`func_count < 1`). | `sinc/sys/entry.sinc` |
 | **`11`** | **Function Table Overflow** | Program exceeds maximum of 1,024 function definitions (`func_count > 1024`). | `sinc/sys/entry.sinc` |
 | **`12`** | **Code Buffer Overflow** | Compiled machine code exceeds 40 MB buffer ceiling (`code_len > 40000000`). | `sinc/sys/entry.sinc` |
@@ -36,7 +36,7 @@ echo $?
 | **`98`** | **Arena / Table Overflow** | Function descriptor table or call argument arena capacity exhausted. | `sinc/sys/parser.sinc`, `sinc/pure/parser_pratt.sinc` |
 | **`99`** | **Out of Memory** | Descriptor arena allocation returned 0 (OOM ceiling reached). | `sinc/sys/parser.sinc` |
 
-> *(Note: File I/O and CLI argument exit codes live in the driver/packager: `packager_entry.sinc` returns 1 for missing arguments, 2 for bad `.safe` header, 3 for open-write failure, 4 for mmap failure, 5 for write failure, and 6 for short read).*
+> *(Note: Orchestrator and tool exit codes: `staff` returns 1 for missing arguments, 2 for file open/read failure, 3 for missing artifact declaration, 4 for target open-write failure, and 5 for internal triad dependency or tray capacity overflow (>127 discovered files). `packager_bin` returns 1 for missing arguments, 2 for bad `.safe` header, 3 for open-write failure, 4 for mmap failure, 5 for write failure, and 6 for short read).*
 
 ---
 

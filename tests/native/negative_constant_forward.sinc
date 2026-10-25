@@ -1,0 +1,7 @@
+// COMPILE_ERROR: 8
+// Regression test: Forward/undefined normal constant read is rejected at compile time
+fn main() [
+    ret LATER;
+]
+
+const LATER = 42;

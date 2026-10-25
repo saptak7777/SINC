@@ -7,20 +7,35 @@
 
 fn staff_append_file!(path, src_buf, len_ptr) [
     fd = sys_open_read!(path);
-    if (!(fd < 0)) [
-        cur = len_ptr@[0];
-        rb = sys_read!(fd, src_buf + cur, 2097152);
-        sys_close!(fd);
-        if (rb > 0) [
-            src_buf@[(cur + rb) * 1] = 10; // '\n'
-            len_ptr@[0] = cur + rb + 1;
+    if (fd < 0) [
+        sys_exit!(2);
+    ]
+    cur = len_ptr@[0];
+    rb = sys_read!(fd, src_buf + cur, 2097152);
+    sys_close!(fd);
+    if (rb < 0) [
+        sys_exit!(2);
+    ]
+    if (rb > 0) [
+        src_buf@[(cur + rb) * 1] = 10; // '\n'
+        len_ptr@[0] = cur + rb + 1;
+    ]
+    ret 0;
+]
+
+fn staff_str_gt(s1, s2) [
+    loop (k:256 = 0 .. 256) [
+        c1 = s1@[k * 1];
+        c2 = s2@[k * 1];
+        if ((c1 != c2) | (c1 == 0)) [
+            ret c1 > c2;
         ]
     ]
     ret 0;
 ]
 
 fn staff_stream_tray!(root_ptr, root_len, sub_word, sub_len, src_buf, len_ptr, arena, is_sys) [
-    dir_path = arena_alloc_words!(arena, (root_len + sub_len + 16) / 8 + 2);
+    dir_path = arena_alloc_words!(arena, 40);
     loop (k:32 = 0 .. root_len) [
         dir_path@[k * 1] = root_ptr@[k * 1];
     ]
@@ -32,74 +47,99 @@ fn staff_stream_tray!(root_ptr, root_len, sub_word, sub_len, src_buf, len_ptr, a
     dir_path@[dir_len * 1] = 0;
 
     fd = sys_open_read!(dir_path);
-    if (fd < 0) [ ret 0; ]
-    dir_buf = arena_alloc_words!(arena, 512);
-    nbytes = sys_getdents!(fd, dir_buf, 4096);
+    if (fd < 0) [
+        ret 0;
+    ]
+    dir_buf = arena_alloc_words!(arena, 8704);
+    nbytes = 0;
+    loop (gk:17 = 0 .. 17) [
+        rb = sys_getdents!(fd, dir_buf + nbytes, 4096);
+        if ((rb < 0) | ((nbytes + rb) > 65536)) [
+            sys_exit!(5);
+        ]
+        if (rb == 0) [
+            gk = 17;
+        ] else [
+            nbytes = nbytes + rb;
+        ]
+    ]
     sys_close!(fd);
-    if (nbytes < 1) [ ret 0; ]
 
+    dir_path@[dir_len * 1] = 47; // '/'
+    tray = arena_alloc_words!(arena, 128);
+    count = 0;
+    entry_ptr = 0;
     pos = 0;
-    loop (dk:1000 = 0 .. 1000) [
+
+    loop (dk:2730 = 0 .. 2730) [
         if (pos < nbytes) [
-            b0 = dir_buf@[(pos + 16) * 1];
-            b1 = dir_buf@[(pos + 17) * 1];
-            reclen = b0 | (b1 << 8);
-            if (reclen < 19) [
-                dk = 1000;
-            ] else [
-                name_off = pos + 19;
-                name_len = 0;
-                name_stop = 0;
-                loop (nk:256 = 0 .. 256) [
-                    if (name_stop == 0) [
-                        if (dir_buf@[(name_off + nk) * 1] == 0) [
-                            name_stop = 1;
-                        ] else [
-                            name_len = name_len + 1;
+            reclen = dir_buf@[(pos + 16) * 1] | (dir_buf@[(pos + 17) * 1] << 8);
+            if ((reclen < 24) | ((pos + reclen) > nbytes)) [
+                sys_exit!(5);
+            ]
+            name_ptr = dir_buf + pos + 19;
+            name_len = 0;
+            loop (nk:256 = 0 .. 256) [
+                if (name_ptr@[nk * 1] == 0) [
+                    name_len = nk;
+                    nk = 256;
+                ]
+            ]
+            if (name_len > 5) [
+                if ((name_ptr@[(name_len - 5) * 1] == 46) & (name_ptr@[(name_len - 4) * 1] == 115) & (name_ptr@[(name_len - 3) * 1] == 105) & (name_ptr@[(name_len - 2) * 1] == 110) & (name_ptr@[(name_len - 1) * 1] == 99)) [
+                    if ((is_sys == 1) & (name_len == 10) & (name_ptr@[0 * 1] == 101) & (name_ptr@[1 * 1] == 110) & (name_ptr@[2 * 1] == 116) & (name_ptr@[3 * 1] == 114) & (name_ptr@[4 * 1] == 121)) [
+                        entry_ptr = name_ptr;
+                    ] else [
+                        if (count > 126) [
+                            sys_exit!(5);
                         ]
+                        tray@[count] = name_ptr;
+                        count = count + 1;
                     ]
                 ]
-                if (name_len > 5) [
-                    off_c = name_off + name_len;
-                    c5 = dir_buf@[(off_c - 5) * 1];
-                    c4 = dir_buf@[(off_c - 4) * 1];
-                    c3 = dir_buf@[(off_c - 3) * 1];
-                    c2 = dir_buf@[(off_c - 2) * 1];
-                    c1 = dir_buf@[(off_c - 1) * 1];
-                    if ((c5 == 46) & (c4 == 115) & (c3 == 105) & (c2 == 110) & (c1 == 99)) [
-                        is_entry = 0;
-                        if (is_sys == 1) [
-                            if (name_len == 10) [
-                                e0 = dir_buf@[(name_off) * 1];
-                                e1 = dir_buf@[(name_off + 1) * 1];
-                                e2 = dir_buf@[(name_off + 2) * 1];
-                                e3 = dir_buf@[(name_off + 3) * 1];
-                                e4 = dir_buf@[(name_off + 4) * 1];
-                                if ((e0 == 101) & (e1 == 110) & (e2 == 116) & (e3 == 114) & (e4 == 121)) [
-                                    is_entry = 1; // "entry.sinc"
-                                ]
-                            ]
-                        ]
-                        if (is_entry == 0) [
-                            full_len = dir_len + 1 + name_len;
-                            full_buf = arena_alloc_words!(arena, (full_len / 8) + 2);
-                            loop (k:64 = 0 .. dir_len) [ full_buf@[k * 1] = dir_path@[k * 1]; ]
-                            full_buf@[dir_len * 1] = 47;
-                            loop (k:64 = 0 .. name_len) [ full_buf@[(dir_len + 1 + k) * 1] = dir_buf@[(name_off + k) * 1]; ]
-                            full_buf@[full_len * 1] = 0;
-                            staff_append_file!(full_buf, src_buf, len_ptr);
-                        ]
-                    ]
-                ]
-                pos = pos + reclen;
+            ]
+            pos = pos + reclen;
+        ]
+    ]
+
+    if (pos != nbytes) [
+        sys_exit!(5);
+    ]
+
+    loop (i:128 = 0 .. count) [
+        loop (j:128 = (i + 1) .. count) [
+            si = tray@[i];
+            sj = tray@[j];
+            if (staff_str_gt(si, sj) != 0) [
+                tray@[i] = sj;
+                tray@[j] = si;
             ]
         ]
+    ]
+
+    if (entry_ptr != 0) [
+        tray@[count] = entry_ptr;
+        count = count + 1;
+    ]
+
+    loop (s_idx:128 = 0 .. count) [
+        item = tray@[s_idx];
+        loop (k:256 = 0 .. 256) [
+            ch = item@[k * 1];
+            dir_path@[(dir_len + 1 + k) * 1] = ch;
+            if (ch == 0) [
+                k = 256;
+            ]
+        ]
+        staff_append_file!(dir_path, src_buf, len_ptr);
     ]
     ret 0;
 ]
 
 fn main!(argc, argv_ptr) [
-    if (argc < 2) [ sys_exit!(1); ]
+    if (argc < 2) [
+        sys_exit!(1);
+    ]
     sys_mmap!(1073741824);
     arena = arena_init!(553648128, 1000000000);
 
@@ -111,11 +151,15 @@ fn main!(argc, argv_ptr) [
     ]
 
     m_fd = sys_open_read!(manifest_path);
-    if (m_fd < 0) [ sys_exit!(2); ]
+    if (m_fd < 0) [
+        sys_exit!(2);
+    ]
     m_buf = arena_alloc_words!(arena, 2048);
     m_len = sys_read!(m_fd, m_buf, 16384);
     sys_close!(m_fd);
-    if (m_len < 1) [ sys_exit!(2); ]
+    if (m_len < 1) [
+        sys_exit!(2);
+    ]
 
     // 1. Mother's UCTT Lexer Initialization
     sym_table = arena_alloc_words!(arena, 16384);
@@ -132,11 +176,8 @@ fn main!(argc, argv_ptr) [
     lex_state = arena_alloc_words!(arena, 6);
     lex_state@[0] = m_buf;
     lex_state@[1] = m_len;
-    lex_state@[3] = 1;
-    lex_state@[4] = 1;
     tok = arena_alloc_words!(arena, 4);
 
-    saw_art = 0;
     root_ptr = 0;
     root_len = 0;
     driver_ptr = 0;
@@ -149,82 +190,66 @@ fn main!(argc, argv_ptr) [
         lexer_next_token!(lex_state, sym_table, 4096, sym_count, tok, lut);
         tt = tok.TOK_TYPE;
         tv = tok.TOK_VAL;
-        if (tt == 0) [ step = 2000; ] // EOF
+        if (tt == 0) [
+            step = 2000;
+        ]
 
         if ((tt == 9) & (tv == 9)) [ // "artifact"
-            saw_art = 1;
-        ]
-        if ((tt == 9) & (saw_art == 1) & (tv != 9) & (root_ptr == 0)) [
+            lexer_next_token!(lex_state, sym_table, 4096, sym_count, tok, lut);
             root_ptr = lex_state.LEX_TMP_PTR;
             root_len = lex_state.LEX_TMP_LEN;
-            saw_art = 0;
         ]
 
-        if ((tt == 9) & (tv == 10)) [ // "deps"
+        if ((tt == 9) & ((tv == 10) | (tv == 11))) [ // "deps" or "driver"
             lexer_next_token!(lex_state, sym_table, 4096, sym_count, tok, lut);
             if (tok.TOK_TYPE == 13) [ // '['
                 loop (dk:1000 = 0 .. 1000) [
                     lexer_next_token!(lex_state, sym_table, 4096, sym_count, tok, lut);
-                    d_tt = tok.TOK_TYPE;
-                    if (d_tt == 14) [ // ']'
+                    if ((tok.TOK_TYPE == 14) | (tok.TOK_TYPE == 0)) [ // ']' or EOF
                         dk = 1000;
                     ] else [
-                        if (d_tt != 0) [
-                            dep_ptr = lex_state.LEX_TMP_PTR;
-                            loop (sk:100 = 0 .. 100) [
-                                if (tok.TOK_TYPE == 22) [ // ';'
-                                    sk = 100;
-                                ] else [
-                                    lexer_next_token!(lex_state, sym_table, 4096, sym_count, tok, lut);
+                        dep_ptr = lex_state.LEX_TMP_PTR;
+                        loop (sk:100 = 0 .. 100) [
+                            if (tok.TOK_TYPE == 22) [ // ';'
+                                sk = 100;
+                            ] else [
+                                lexer_next_token!(lex_state, sym_table, 4096, sym_count, tok, lut);
+                            ]
+                        ]
+                        m_buf@[(lex_state.LEX_CURSOR - 1) * 1] = 0;
+                        is_own = 0;
+                        if (root_len > 0) [
+                            if (dep_ptr@[root_len * 1] == 47) [
+                                is_own = 1;
+                                loop (rk:32 = 0 .. root_len) [
+                                    if (dep_ptr@[rk * 1] != root_ptr@[rk * 1]) [
+                                        is_own = 0;
+                                    ]
                                 ]
                             ]
-                            semi_pos = lex_state.LEX_CURSOR - 1;
-                            m_buf@[semi_pos * 1] = 0;
+                        ]
+                        if (is_own != 0) [
+                            sys_exit!(5);
+                        ]
+                        if (tv == 10) [
                             staff_append_file!(dep_ptr, src_buf, len_ptr);
-                        ]
-                    ]
-                ]
-            ]
-        ]
-
-        if ((tt == 9) & (tv == 11)) [ // "driver"
-            lexer_next_token!(lex_state, sym_table, 4096, sym_count, tok, lut);
-            if (tok.TOK_TYPE == 13) [ // '['
-                lexer_next_token!(lex_state, sym_table, 4096, sym_count, tok, lut);
-                if (tok.TOK_TYPE != 14) [
-                    driver_ptr = lex_state.LEX_TMP_PTR;
-                    loop (drk:100 = 0 .. 100) [
-                        if (tok.TOK_TYPE == 22) [ // ';'
-                            drk = 100;
                         ] else [
-                            lexer_next_token!(lex_state, sym_table, 4096, sym_count, tok, lut);
+                            driver_ptr = dep_ptr;
                         ]
                     ]
-                    semi_pos = lex_state.LEX_CURSOR - 1;
-                    m_buf@[semi_pos * 1] = 0;
                 ]
             ]
         ]
     ]
 
-    if (root_ptr == 0) [ sys_exit!(3); ]
+    if (root_ptr == 0) [
+        sys_exit!(3);
+    ]
 
     // Stream artifact's own Triad
     staff_stream_tray!(root_ptr, root_len, 1635017060, 4, src_buf, len_ptr, arena, 0); // data
     staff_stream_tray!(root_ptr, root_len, 1701999984, 4, src_buf, len_ptr, arena, 0); // pure
-    staff_stream_tray!(root_ptr, root_len, 7567731, 3, src_buf, len_ptr, arena, 1);    // sys (skips entry.sinc)
-
-    // Append <root>/sys/entry.sinc
-    p_entry = arena_alloc_words!(arena, (root_len + 16) / 8 + 2);
-    loop (k:32 = 0 .. root_len) [ p_entry@[k * 1] = root_ptr@[k * 1]; ]
-    p_entry@[root_len * 1] = 47; // '/'
-    p_entry@[(root_len + 1) * 1] = 115; p_entry@[(root_len + 2) * 1] = 121; p_entry@[(root_len + 3) * 1] = 115;
-    p_entry@[(root_len + 4) * 1] = 47;
-    p_entry@[(root_len + 5) * 1] = 101; p_entry@[(root_len + 6) * 1] = 110; p_entry@[(root_len + 7) * 1] = 116;
-    p_entry@[(root_len + 8) * 1] = 114; p_entry@[(root_len + 9) * 1] = 121; p_entry@[(root_len + 10) * 1] = 46;
-    p_entry@[(root_len + 11) * 1] = 115; p_entry@[(root_len + 12) * 1] = 105; p_entry@[(root_len + 13) * 1] = 110;
-    p_entry@[(root_len + 14) * 1] = 99; p_entry@[(root_len + 15) * 1] = 0;
-    staff_append_file!(p_entry, src_buf, len_ptr);
+    staff_stream_tray!(root_ptr, root_len, 7567731, 3, src_buf, len_ptr, arena, 1);    // sys
 
     // If a host driver was declared (e.g. steel/sys/driver_linux.sinc), append it LAST
     if (driver_ptr != 0) [
@@ -236,7 +261,9 @@ fn main!(argc, argv_ptr) [
 
     if (out_target != 0) [
         out_fd = sys_open_write!(out_target);
-        if (out_fd < 0) [ sys_exit!(4); ]
+        if (out_fd < 0) [
+            sys_exit!(4);
+        ]
         sys_write!(out_fd, out_payload@[2], 32);
         sys_write!(out_fd, out_payload@[0], out_payload@[1]);
         sys_close!(out_fd);

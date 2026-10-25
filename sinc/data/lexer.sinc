@@ -29,14 +29,12 @@ const T_DOTDOT   = 37;
 const LEX_SRC_PTR = 0; // Raw pointer to loaded source code ASCII bytes
 const LEX_SRC_LEN = 1; // Total length of the source file in bytes
 const LEX_CURSOR  = 2; // Current byte index being read
-const LEX_LINE    = 3; // Current line number (starts at 1)
 const LEX_TMP_PTR = 4; // Embedded String Slice ptr (used as ghost slice)
 const LEX_TMP_LEN = 5; // Embedded String Slice len (used as ghost slice)
 
 // --- 2. Constant Lenses for Token Output (4 words) ---
 const TOK_TYPE  = 0; // The integer Token Kind representing the token type
 const TOK_VAL   = 1; // Holds symbol ID (IDENTs) or parsed integer value (NUMBERs)
-const TOK_LINE  = 2; // The line number where the token was matched
 const TOK_FLAGS = 3; // Packed token metadata flags
 
 // --- Token Metadata Flags (Stored in TOK_FLAGS) ---
@@ -91,7 +89,7 @@ fn lexer_init!(arena, sym_table, sym_capacity, sym_count, lut) [
     lut@[33]  = 26 | 2048 | (61 << 16) | (31 << 24);   // '!' T_EXCL, ident-cont, '!=' T_NEQ
     lut@[126] = 27 | 2048;                             // '~' T_TILDE, ident-cont
     lut@[64]  = 28;                                    // '@' T_AT
-    lut@[58]  = 29 | 2048;                             // ':' T_COLON, ident-cont
+    lut@[58]  = 29;                                    // ':' T_COLON
     lut@[60]  = 32 | (60 << 16) | (34 << 24);          // '<' T_LT, '<<' T_SHL
     lut@[62]  = 33 | (62 << 16) | (35 << 24);          // '>' T_GT, '>>' T_SHR
 
@@ -124,7 +122,6 @@ fn lexer_next_token!(state, sym_table, sym_capacity, sym_count, out_token, lut) 
             ] else [
                 if ((traits & 256) != 0) [
                     cursor = cursor + 1;
-                    state.LEX_LINE = state.LEX_LINE + ((traits >> 12) & 1);
                 ] else [
                     cursor = cursor + 2;
                     loop (ck:10000000 = cursor .. src_len) [
@@ -133,7 +130,6 @@ fn lexer_next_token!(state, sym_table, sym_capacity, sym_count, out_token, lut) 
                             ck = src_len;
                         ] else [
                             cursor = cursor + 1;
-                            state.LEX_LINE = state.LEX_LINE + (c_ch == 10);
                             if ((nch == 47) & (c_ch == 10)) [
                                 ck = src_len;
                             ]
@@ -193,25 +189,6 @@ fn lexer_next_token!(state, sym_table, sym_capacity, sym_count, out_token, lut) 
                 len = len - 1;
             ]
 
-            b_accum = 0;
-            loop (i:10000000 = 0 .. len) [
-                idx = (len - 1) - i;
-                if (ptr@[idx * 1] == 58) [
-                    loop (j:10000000 = (idx + 1) .. len) [
-                        b_ch = ptr@[j * 1];
-                        if ((b_ch < 48) | (b_ch > 57)) [
-                            tok_type = 36;
-                            tok_val = b_ch;
-                            j = len;
-                        ]
-                        b_accum = (b_accum * 10) + (b_ch - 48);
-                    ]
-                    tok_flags = tok_flags | (b_accum << 32);
-                    len = idx;
-                    i = len;
-                ]
-            ]
-
             state.LEX_TMP_PTR = ptr;
             state.LEX_TMP_LEN = len;
             tmp_slice = state + 32;
@@ -250,12 +227,6 @@ fn lexer_next_token!(state, sym_table, sym_capacity, sym_count, out_token, lut) 
     state.LEX_CURSOR    = cursor;
     out_token.TOK_TYPE  = tok_type;
     out_token.TOK_VAL   = tok_val;
-    out_token.TOK_LINE  = state.LEX_LINE;
     out_token.TOK_FLAGS = tok_flags;
     ret 0;
-]
-
-fn lexer_advance!(ctx) [
-    lexer_next_token!(ctx@[2], ctx@[4], ctx@[5], ctx@[6], ctx@[3], ctx@[7]);
-    ret ctx@[3];
 ]

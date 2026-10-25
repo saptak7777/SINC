@@ -5,21 +5,6 @@
 // Pure text algorithms: zero '!', zero syscalls
 // ==========================================
 
-const MAX_GLOBAL_FUNCS   = 2048;
-const FUNC_REC_WORDS     = 7;
-const FUNC_REC_PTR       = 0;
-const FUNC_REC_LEN       = 1;
-const FUNC_REC_FILE      = 2;
-const FUNC_REC_LINE      = 3;
-const FUNC_REC_START     = 4;
-const FUNC_REC_END       = 5;
-const FUNC_REC_CALLED    = 6;
-
-const MAX_GLOBAL_EXTERNS = 256;
-const EXT_REC_WORDS      = 2;
-const EXT_REC_PTR        = 0;
-const EXT_REC_LEN        = 1;
-
 fn slim_is_ident_char(ch) [
     if ((!(ch < 97)) & (ch < 123)) [
         ret 1;

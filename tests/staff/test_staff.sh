@@ -83,6 +83,77 @@ test_cmd "Compile SLIM manifest (slim/build.staff)" 0 "$STAFF" "$ROOT_DIR/slim/b
 chmod +x "$BUILD_DIR/slim.elf"
 test_cmd "Execute binary compiled by STAFF-built SLIM (returns 1 for help)" 1 "$BUILD_DIR/slim.elf"
 
+# 8. Bounded getdents directory scan (>1000 non-source records)
+LARGE_DIR="$BUILD_DIR/large_fixture"
+rm -rf "$LARGE_DIR"
+mkdir -p "$LARGE_DIR/app/data" "$LARGE_DIR/app/sys"
+cat << 'EOF' > "$LARGE_DIR/app/build.staff"
+artifact app [
+]
+EOF
+for i in $(seq -w 1 1500); do
+    touch "$LARGE_DIR/app/data/dummy_$i.txt"
+done
+cat << 'EOF' > "$LARGE_DIR/app/data/z_defs.sinc"
+const SECRET_ANSWER = 42;
+EOF
+cat << 'EOF' > "$LARGE_DIR/app/sys/entry.sinc"
+fn main!() [
+    ret SECRET_ANSWER;
+]
+EOF
+test_cmd "Compile project with >1000 non-source files" 0 bash -c "cd '$LARGE_DIR' && '$STAFF' app/build.staff out.safe"
+"$PACKAGER" "$LARGE_DIR/out.safe" "$LARGE_DIR/out.elf"
+chmod +x "$LARGE_DIR/out.elf"
+test_cmd "Execute binary from >1000 file directory (returns 42)" 42 "$LARGE_DIR/out.elf"
+rm -rf "$LARGE_DIR"
+
+# 9. Duplicate internal dependency rejection (exit 5)
+DUP_DIR="$BUILD_DIR/dup_fixture"
+rm -rf "$DUP_DIR"
+mkdir -p "$DUP_DIR/app/data" "$DUP_DIR/app/sys"
+cat << 'EOF' > "$DUP_DIR/app/build.staff"
+artifact app [
+]
+deps [
+    app/data/defs.sinc;
+]
+EOF
+echo 'const X = 1;' > "$DUP_DIR/app/data/defs.sinc"
+echo 'fn main!() [ ret 0; ]' > "$DUP_DIR/app/sys/entry.sinc"
+test_cmd "Duplicate internal dependency rejected (exit 5)" 5 bash -c "cd '$DUP_DIR' && '$STAFF' app/build.staff out.safe"
+rm -rf "$DUP_DIR"
+
+# 10. Missing dependency rejection (exit 2)
+MISSING_DIR="$BUILD_DIR/missing_fixture"
+rm -rf "$MISSING_DIR"
+mkdir -p "$MISSING_DIR/app/sys"
+cat << 'EOF' > "$MISSING_DIR/app/build.staff"
+artifact app [
+]
+deps [
+    steel/sys/nonexistent_file.sinc;
+]
+EOF
+echo 'fn main!() [ ret 0; ]' > "$MISSING_DIR/app/sys/entry.sinc"
+test_cmd "Missing dependency rejected (exit 2)" 2 bash -c "cd '$MISSING_DIR' && '$STAFF' app/build.staff out.safe"
+rm -rf "$MISSING_DIR"
+
+# 11. Tray capacity overflow (>127 discovered files, exit 5)
+OVERFLOW_DIR="$BUILD_DIR/overflow_fixture"
+rm -rf "$OVERFLOW_DIR"
+mkdir -p "$OVERFLOW_DIR/app/data" "$OVERFLOW_DIR/app/sys"
+cat << 'EOF' > "$OVERFLOW_DIR/app/build.staff"
+artifact app [
+]
+EOF
+for i in $(seq -w 1 128); do
+    echo "const V$i = $i;" > "$OVERFLOW_DIR/app/data/file_$i.sinc"
+done
+echo 'fn main!() [ ret 0; ]' > "$OVERFLOW_DIR/app/sys/entry.sinc"
+test_cmd "Tray capacity overflow >127 discovered files rejected (exit 5)" 5 bash -c "cd '$OVERFLOW_DIR' && '$STAFF' app/build.staff out.safe"
+rm -rf "$OVERFLOW_DIR"
+
 echo "========================================================================="
 TOTAL=$((PASS + FAIL))
 if [ "$FAIL" -eq 0 ]; then

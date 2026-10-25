@@ -21,7 +21,6 @@ fn compile_core!(src_buf, src_len, arena) [
     lex_state = arena_alloc_words!(arena, 6);
     lex_state@[0] = src_buf;
     lex_state@[1] = src_len;
-    lex_state@[3] = 1;
 
     global_scratch_tape = arena_alloc_words!(arena, 1048576);
 
@@ -43,7 +42,7 @@ fn compile_core!(src_buf, src_len, arena) [
     ctx@[18] = 0;
     ctx@[19] = global_scratch_tape;
 
-    lexer_advance!(ctx);
+    parser_advance!(ctx);
 
     prog_desc = parse_program!(ctx);
 

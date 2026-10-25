@@ -198,6 +198,18 @@ When packaging a `.safe` binary into a standalone ELF executable via `packager_b
 | **Offset 224** | `sys_open!(path, flags, mode)` | `mov %rcx, %rdi; mov %rdx, %rsi; mov $420, %edx; mov $2, %eax; syscall; ret` |
 | **Offset 256** | `sys_mmap!(size)` | `mmap(0x20000000, size, PROT_READ\|WRITE, MAP_ANON\|PRIVATE, -1, 0)` |
 
+### Inspecting Minimal Program-Header-Only ELFs
+
+`packager_bin` produces minimal, sovereign Linux executables with `e_shnum = 0` (zero section headers). Because there is no `.text` section header table, ordinary section-based `objdump -d app.elf` reports no machine code sections.
+
+To disassemble the executable with standard GNU binutils, disassemble the binary image directly from its entrypoint:
+
+```bash
+objdump -D -b binary -m i386:x86-64 \
+  --adjust-vma=0x400000 \
+  --start-address=0x400078 app.elf
+```
+
 ---
 
 ## 5. Native Linux Terminal Engine (`os_linux.sinc`)

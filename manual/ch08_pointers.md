@@ -44,4 +44,20 @@ idx = i + 1;
 arr@[idx] = val;
 ```
 
+---
 
+## Pointer Tiers: Refined `:BOUND` Slices vs. Raw Dynamic Pointers
+
+Memory access in SINC operates in two distinct architectural tiers:
+
+### Tier 1: Refined `:BOUND` Slices (Statically Bounds-Checked)
+When a pointer or loop variable is declared with an explicit upper bound (e.g. `buf:64` or `loop (i:128 = 0 .. count)`), SINC's frontend activates static range refinement:
+* Every load and store (`buf@[idx]`) is checked against the known bound at compile time.
+* If an index exceeds or cannot be proven to fit within `0 .. BOUND - 1`, the compiler rejects the program immediately with **Exit Code 15** (`Index Out Of Bounds`).
+* Refined variables carry linear ownership semantics: assigning or passing a refined slice transfers ownership, preventing accidental double consumption or data corruption.
+
+### Tier 2: Raw Dynamic Pointers (Unchecked by Design)
+When memory is allocated dynamically via bump arenas (`arena_alloc_words!`) or OS `sys_mmap!` without a bound suffix, the pointer has `rng == 0`:
+* Raw pointers represent unchecked low-level memory buffers (tapes, hash tables, bytecode emit buffers).
+* They allow unbounded pointer arithmetic, arbitrary offset arithmetic, and aliasing necessary for systems programming, runtime kernels, and compiler internals.
+* No compile-time bounds checks are synthesized for raw pointers; bounds management is the responsibility of the allocator and loop termination invariants.

@@ -68,7 +68,7 @@ fn bindings_branch_close!(journal, bindings, mark, then_lin) [
 fn bindings_touch!(journal, bindings, sym_id, assign, is_linear, type_payload, val_id) [
     w0 = bindings@[sym_id];
     state = w0 & 255;
-    if (state == 3) [
+    if ((state == 3) | ((state == 0) & ((assign & 3) == 0))) [
         sys_exit!(8);
     ]
 

@@ -56,20 +56,20 @@ fn parse_expr!(min_bp, ctx, bindings, inst_count) [
 
         if ((lhs < 0) | (tok_type == 16)) [
             if (tok_type == 11) [
-                lexer_advance!(ctx);
+                parser_advance!(ctx);
                 push_w0 = 1;
             ]
             if ((tok_type == 19) | (tok_type == 26)) [
-                lexer_advance!(ctx);
+                parser_advance!(ctx);
                 push_w0 = 4 | ((IR_OP_CMP + ((tok_type == 19) * 7)) << 16);
                 next_bp = 19;
             ]
             if (tok_type == 10) [
                 lhs = out_token.TOK_VAL;
-                lexer_advance!(ctx);
+                parser_advance!(ctx);
             ]
             if (tok_type == 16) [
-                lexer_advance!(ctx);
+                parser_advance!(ctx);
                 if (out_token.TOK_TYPE != 9) [
                     sys_exit!(8);
                 ]
@@ -79,7 +79,7 @@ fn parse_expr!(min_bp, ctx, bindings, inst_count) [
                 sym_id    = out_token.TOK_VAL;
                 tok_flags = out_token.TOK_FLAGS;
                 idx       = sym_id * 2;
-                lexer_advance!(ctx);
+                parser_advance!(ctx);
 
                 if (const_table@[idx] == 1) [
                     if (lhs < 0) [
@@ -93,7 +93,7 @@ fn parse_expr!(min_bp, ctx, bindings, inst_count) [
                 ] else [
                     if ((lhs < 0) & (out_token.TOK_TYPE != 11)) [
                         type_payload = tok_flags >> 32;
-                        t_mode       = ((out_token.TOK_TYPE == 28) | (out_token.TOK_TYPE == 16) | (out_token.TOK_TYPE == 17)) * 2;
+                        t_mode       = ((out_token.TOK_TYPE == 17) * 2) | (((out_token.TOK_TYPE == 28) | (out_token.TOK_TYPE == 16)) * 4);
                         ctx@[17]     = ((tok_flags & FLAG_LINEAR) != 0) & ((type_payload > 0) | ((bindings@[sym_id] & 255) == 2));
                         lhs          = bindings_touch!(ctx@[15], bindings, sym_id, t_mode, ctx@[17], type_payload, fresh_val!(ctx@[9]));
                         ctx@[18]     = (bindings@[sym_id] >> 32) & 4294967295;
@@ -112,7 +112,7 @@ fn parse_expr!(min_bp, ctx, bindings, inst_count) [
                         cont_tape@[(sp + 3)] = args_ptr;
                         call_mode            = 3;
                         if (out_token.TOK_TYPE == 11) [
-                            lexer_advance!(ctx);
+                            parser_advance!(ctx);
                             call_mode = 2;
                         ]
                     ]
@@ -130,9 +130,9 @@ fn parse_expr!(min_bp, ctx, bindings, inst_count) [
         ] else [
             cont_tape@[(sp + 1)] = lhs;
             if (tok_type == 28) [
-                lexer_advance!(ctx);
+                parser_advance!(ctx);
                 if (out_token.TOK_TYPE == 13) [
-                    lexer_advance!(ctx);
+                    parser_advance!(ctx);
                     cont_tape@[(sp + 2)] = ctx@[18];
                     cont_tape@[(sp + 3)] = inst_count;
                     push_w0              = 3 | (ctx@[17] << 16);
@@ -148,7 +148,7 @@ fn parse_expr!(min_bp, ctx, bindings, inst_count) [
                 op_data = pratt_lut@[tok_type];
 
                 if ((op_data != 0) & (!((op_data & 255) < min_bp))) [
-                    lexer_advance!(ctx);
+                    parser_advance!(ctx);
                     push_w0 = 5 | (op_data & -65536);
                     next_bp = (op_data >> 8) & 255;
                 ] else [
@@ -168,7 +168,7 @@ fn parse_expr!(min_bp, ctx, bindings, inst_count) [
                         cont_tape@[(sp + 3)]@[op_meta] = lhs;
                         argc                           = op_meta + 1;
                         if (tok_type == 15) [
-                            lexer_advance!(ctx);
+                            parser_advance!(ctx);
                         ]
                     ]
                     if (f_kind == 3) [
@@ -187,17 +187,17 @@ fn parse_expr!(min_bp, ctx, bindings, inst_count) [
                         ctx@[18] = 0;
 
                         if (out_token.TOK_TYPE == 20) [
-                            lexer_advance!(ctx);
+                            parser_advance!(ctx);
                             aux = 8;
                             if (out_token.TOK_TYPE == 10) [
                                 aux = out_token.TOK_VAL;
-                                lexer_advance!(ctx);
+                                parser_advance!(ctx);
                             ]
                         ]
                         if (out_token.TOK_TYPE != 14) [
                             sys_exit!(7);
                         ]
-                        lexer_advance!(ctx);
+                        parser_advance!(ctx);
                         op_meta = IR_OP_LOAD_IND | (op_meta * FLAG_LINEAR_NO_ALIAS);
                     ]
                     if (f_kind == 4) [
@@ -225,7 +225,7 @@ fn parse_expr!(min_bp, ctx, bindings, inst_count) [
             if (out_token.TOK_TYPE != 12) [
                 sys_exit!(7);
             ]
-            lexer_advance!(ctx);
+            parser_advance!(ctx);
         ]
         if (push_w0 != 0) [
             cont_tape@[sp] = push_w0 | (min_bp << 8);

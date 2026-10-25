@@ -3,126 +3,105 @@
 // S.T.E.E.L. .safe to Linux x86-64 ELF Packager
 // ==========================================
 
+fn emit_thunk3!(thunks, base, sys_nr) [
+    thunks@[base]       = 72 | (137 << 8) | (207 << 16) | (72 << 24) | (137 << 32) | (214 << 40) | (72 << 48) | (137 << 56);
+    thunks@[(base + 1)] = 218 | (184 << 8) | (sys_nr << 16) | (15 << 48) | (5 << 56);
+    thunks@[(base + 2)] = 195;
+    ret 0;
+]
+
 fn pack_safe_to_elf!(safe_path, elf_path, arena) [
-    // 1. Open .safe file and read the 32-byte header
     safe_fd = sys_open_read!(safe_path);
     if (safe_fd < 0) [
-        sys_exit!(1); // Input file missing or inaccessible
+        sys_exit!(1);
     ]
 
-    header_buf = arena_alloc_words!(arena, 4); header_bytes = sys_read!(safe_fd, header_buf, 32);
+    header_buf = arena_alloc_words!(arena, 4);
+    header_bytes = sys_read!(safe_fd, header_buf, 32);
     if (header_bytes != 32) [
         sys_close!(safe_fd);
         sys_exit!(2);
     ]
 
-    format = header_buf@[0]; magic = format & 4294967295; version = format >> 32;
-    code_len = header_buf@[1]; main_offset = header_buf@[2];
+    format = header_buf@[0];
+    magic = format & 4294967295;
+    version = format >> 32;
+    code_len = header_buf@[1];
+    main_offset = header_buf@[2];
     if ((magic != 1396786245) | (version != 1) | (header_buf@[3] != 32) | (!(main_offset < code_len))) [
         sys_close!(safe_fd);
-        sys_exit!(2); // Invalid .safe header
+        sys_exit!(2);
     ]
 
-    // 2. Open Output Linux ELF File
     elf_fd = sys_open_write!(elf_path);
     if (elf_fd < 0) [
         sys_close!(safe_fd);
-        sys_exit!(3); // Cannot write output ELF file
+        sys_exit!(3);
     ]
 
-    // 3. Write 120-byte ELF Header & Program Header
-    // Virtual Base: 0x400000. _start Entrypoint: 0x400078
-    elf_hdr = arena_alloc_words!(arena, 15);
-    elf_hdr@[0] = 127 | (69 << 8) | (76 << 16) | (70 << 24) | (2 << 32) | (1 << 40) | (1 << 48);
-    elf_hdr@[1] = 0;
-    elf_hdr@[2] = 2 | (62 << 16) | (1 << 32);
-    elf_hdr@[3] = 4194424; // ELF_ENTRY = 0x400078
-    elf_hdr@[4] = 64;      // e_phoff = 64
-    elf_hdr@[5] = 0;
-    elf_hdr@[6] = 0 | (64 << 32) | (56 << 48);
-    elf_hdr@[7] = 1;      // e_phnum = 1
-    elf_hdr@[8] = 1 | (5 << 32); // p_type = PT_LOAD (1), p_flags = PF_R | PF_X (5)
-    elf_hdr@[9] = 0;
-    elf_hdr@[10] = 4194304; // p_vaddr = 0x400000
-    elf_hdr@[11] = 4194304;
+    image_size = 448 + code_len;
+    img = arena_alloc_words!(arena, (image_size + 7) >> 3);
 
-    image_size = 120 + 40 + 288 + code_len;
-    elf_hdr@[12] = image_size;
-    elf_hdr@[13] = image_size;
-    elf_hdr@[14] = 4096; // p_align = 0x1000
+    // 1. ELF Header (64 bytes) & Program Header (56 bytes) [Words 0..14]
+    img@[0]  = 127 | (69 << 8) | (76 << 16) | (70 << 24) | (2 << 32) | (1 << 40) | (1 << 48);
+    img@[1]  = 0;
+    img@[2]  = 2 | (62 << 16) | (1 << 32);
+    img@[3]  = 4194424; // ELF_ENTRY = 0x400078
+    img@[4]  = 64;      // e_phoff = 64
+    img@[5]  = 0;
+    img@[6]  = 0 | (64 << 32) | (56 << 48);
+    img@[7]  = 1;      // e_phnum = 1
+    img@[8]  = 1 | (5 << 32); // p_type = PT_LOAD (1), p_flags = PF_R | PF_X (5)
+    img@[9]  = 0;
+    img@[10] = 4194304; // p_vaddr = 0x400000
+    img@[11] = 4194304;
+    img@[12] = image_size;
+    img@[13] = image_size;
+    img@[14] = 4096; // p_align = 0x1000
 
-    written = sys_write!(elf_fd, elf_hdr, 120); if (written != 120) [ sys_close!(safe_fd); sys_close!(elf_fd); sys_exit!(5); ]
-
-    // 4. Write 40-byte Startup Thunk (_start at 0x400078)
-    // mov r12, rdx inserted after lea rdx,[rsp+8]: r12 holds argv_ptr for ALL of Stage 3
-    // r12 is absent from SINC pool (rcx,rdx,rbx,rsi,rdi,r8,r9,r13,r14,r15) — never clobbered
-    startup = arena_alloc_words!(arena, 5);
-    startup@[0] = 72 | (139 << 8) | (12 << 16) | (36 << 24) | (72 << 32) | (141 << 40) | (84 << 48) | (36 << 56);
+    // 2. Startup Thunk (40 bytes) [Words 15..19]
     main_addr = 4194424 + 40 + 288 + main_offset;
+    img@[15] = 72 | (139 << 8) | (12 << 16) | (36 << 24) | (72 << 32) | (141 << 40) | (84 << 48) | (36 << 56);
+    img@[16] = 8 | (73 << 8) | (137 << 16) | (212 << 24) | (73 << 32) | (187 << 40) | ((main_addr & 65535) << 48);
+    img@[17] = ((main_addr >> 16) & 281474976710655) | (65 << 48) | (255 << 56);
+    img@[18] = 211 | (72 << 8) | (137 << 16) | (199 << 24) | (72 << 32) | (184 << 40) | (60 << 48);
+    img@[19] = 364510094840299520;
 
-    startup@[1] = 8 | (73 << 8) | (137 << 16) | (212 << 24) | (73 << 32) | (187 << 40) | ((main_addr & 65535) << 48);
-    startup@[2] = ((main_addr >> 16) & 281474976710655) | (65 << 48) | (255 << 56);
-    startup@[3] = 211 | (72 << 8) | (137 << 16) | (199 << 24) | (72 << 32) | (184 << 40) | (60 << 48);
-    startup@[4] = 364510094840299520;
+    // 3. Thunk Header (288 bytes, 9 Thunks x 32-Byte Stride) [Words 20..55]
+    loop (t_idx:36 = 0 .. 36) [
+        img@[(20 + t_idx)] = 0;
+    ]
 
-    written = sys_write!(elf_fd, startup, 40); if (written != 40) [ sys_close!(safe_fd); sys_close!(elf_fd); sys_exit!(5); ]
+    emit_thunk3!(img, 20, 16);                                                  // Thunk 0: sys_ioctl
+    img@[24] = 76 | (137 << 8) | (224 << 16) | (195 << 24);                     // Thunk 1: get_argv
+    emit_thunk3!(img, 28, 217);                                                 // Thunk 2: sys_getdents64
+    img@[32] = 72 | (137 << 8) | (207 << 16) | (184 << 24) | (60 << 32);       // Thunk 3: sys_exit
+    img@[33] = 15 | (5 << 8) | (195 << 16);
+    img@[36] = 72 | (137 << 8) | (207 << 16) | (184 << 24) | (3 << 32);        // Thunk 4: sys_close
+    img@[37] = 15 | (5 << 8) | (195 << 16);
+    emit_thunk3!(img, 40, 1);                                                   // Thunk 5: sys_write
+    emit_thunk3!(img, 44, 0);                                                   // Thunk 6: sys_read
+    img@[48] = 72 | (137 << 8) | (207 << 16) | (72 << 24) | (137 << 32) | (214 << 40) | (186 << 48) | (164 << 56); // Thunk 7: sys_open
+    img@[49] = 1 | (0 << 8) | (0 << 16) | (184 << 24) | (2 << 32) | (0 << 40) | (0 << 48) | (0 << 56);
+    img@[50] = 15 | (5 << 8) | (195 << 16);
+    img@[52] = -2987777575507459905;                                            // Thunk 8: sys_mmap
+    img@[53] = 7663509400712774506;
+    img@[54] = 678575907326673407;
+    img@[55] = 3271888728;
 
-    // 5. Write 288-byte Thunk Header (9 Thunks x 32-Byte Stride)
-    thunks = arena_alloc_words!(arena, 36);
-    loop (t_idx:36 = 0 .. 36) [ thunks@[t_idx] = 0; ]
-
-    // Thunk 0 (Offset 0): sys_ioctl (mov rdi,rcx; mov rsi,rdx; mov rdx,rbx; mov eax,16; syscall; ret)
-    thunks@[0] = 72 | (137 << 8) | (207 << 16) | (72 << 24) | (137 << 32) | (214 << 40) | (72 << 48) | (137 << 56);
-    thunks@[1] = 218 | (184 << 8) | (16 << 16) | (0 << 24) | (0 << 32) | (0 << 40) | (15 << 48) | (5 << 56);
-    thunks@[2] = 195;
-
-    // Thunk 1 (Offset 32): get_argv! (mov rax,r12; ret)
-    thunks@[4] = 76 | (137 << 8) | (224 << 16) | (195 << 24);
-
-    // Thunk 2 (Offset 64): sys_getdents64 (Syscall 217)
-    // mov rdi, rcx; mov rsi, rdx; mov rdx, rbx; mov eax, 217; syscall; ret
-    thunks@[8] = 72 | (137 << 8) | (207 << 16) | (72 << 24) | (137 << 32) | (214 << 40) | (72 << 48) | (137 << 56);
-    thunks@[9] = 218 | (184 << 8) | (217 << 16) | (0 << 24) | (0 << 32) | (0 << 40) | (15 << 48) | (5 << 56);
-    thunks@[10] = 195;
-    thunks@[11] = 0;
-
-    // Thunk 3 (Offset 96): sys_exit
-    thunks@[12] = 72 | (137 << 8) | (207 << 16) | (184 << 24) | (60 << 32);
-    thunks@[13] = 15 | (5 << 8) | (195 << 16);
-
-    // Thunk 4 (Offset 128): sys_close
-    thunks@[16] = 72 | (137 << 8) | (207 << 16) | (184 << 24) | (3 << 32);
-    thunks@[17] = 15 | (5 << 8) | (195 << 16);
-
-    // Thunk 5 (Offset 160): sys_write
-    thunks@[20] = 72 | (137 << 8) | (207 << 16) | (72 << 24) | (137 << 32) | (214 << 40) | (72 << 48) | (137 << 56);
-    thunks@[21] = 218 | (184 << 8) | (1 << 16) | (0 << 24) | (0 << 32) | (0 << 40) | (15 << 48) | (5 << 56);
-    thunks@[22] = 195;
-
-    // Thunk 6 (Offset 192): sys_read
-    thunks@[24] = 72 | (137 << 8) | (207 << 16) | (72 << 24) | (137 << 32) | (214 << 40) | (72 << 48) | (137 << 56);
-    thunks@[25] = 218 | (184 << 8) | (0 << 16) | (0 << 24) | (0 << 32) | (0 << 40) | (15 << 48) | (5 << 56);
-    thunks@[26] = 195;
-
-    // Thunk 7 (Offset 224): sys_open
-    thunks@[28] = 72 | (137 << 8) | (207 << 16) | (72 << 24) | (137 << 32) | (214 << 40) | (186 << 48) | (164 << 56);
-    thunks@[29] = 1 | (0 << 8) | (0 << 16) | (184 << 24) | (2 << 32) | (0 << 40) | (0 << 48) | (0 << 56);
-    thunks@[30] = 15 | (5 << 8) | (195 << 16);
-
-    // Thunk 8 (Offset 256): sys_mmap (fixed address 0x20000000)
-    thunks@[32] = -2987777575507459905;
-    thunks@[33] = 7663509400712774506;
-    thunks@[34] = 678575907326673407;
-    thunks@[35] = 3271888728;
-
-    written = sys_write!(elf_fd, thunks, 288); if (written != 288) [ sys_close!(safe_fd); sys_close!(elf_fd); sys_exit!(5); ]
-
-    // 6. Read and write the exact code payload.
-    code_buf = arena_alloc_words!(arena, (code_len + 7) >> 3); code_bytes = sys_read!(safe_fd, code_buf, code_len);
-    if (code_bytes != code_len) [ sys_close!(safe_fd); sys_close!(elf_fd); sys_exit!(6); ]
-    written = sys_write!(elf_fd, code_buf, code_len); if (written != code_len) [ sys_close!(safe_fd); sys_close!(elf_fd); sys_exit!(5); ]
-
+    // 4. Read Payload Directly into Contiguous Image Buffer & Single Atomic Write
+    code_bytes = sys_read!(safe_fd, img + 448, code_len);
     sys_close!(safe_fd);
+    if (code_bytes != code_len) [
+        sys_close!(elf_fd);
+        sys_exit!(6);
+    ]
+
+    written = sys_write!(elf_fd, img, image_size);
     sys_close!(elf_fd);
+    if (written != image_size) [
+        sys_exit!(5);
+    ]
+
     ret 0;
 ]

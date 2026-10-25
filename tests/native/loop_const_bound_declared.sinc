@@ -1,0 +1,11 @@
+// EXPECT: 42
+// Regression test: Prior declared top-level constant used as loop bound
+const LIMIT = 42;
+
+fn main() [
+    count = 0;
+    loop (i:LIMIT = 0 .. LIMIT) [
+        count = count + 1;
+    ]
+    ret count;
+]

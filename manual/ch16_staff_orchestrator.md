@@ -59,13 +59,23 @@ driver [
 ]
 ```
 
-STAFF automatically appends:
-1. All files declared in `deps [...]`
-2. All `.sinc` files found inside `data/`
-3. All `.sinc` files found inside `pure/`
-4. All `.sinc` files found inside `sys/` (excluding `entry.sinc`)
+STAFF automatically appends files in strict universal order:
+1. All files declared in `deps [...]` (in declared order)
+2. All `.sinc` files found inside `data/` (sorted in strict lexicographical order)
+3. All `.sinc` files found inside `pure/` (sorted in strict lexicographical order)
+4. All `.sinc` files found inside `sys/` (sorted in strict lexicographical order, excluding `entry.sinc`)
 5. `<root>/sys/entry.sinc`
 6. Optional `driver` (if declared)
+
+Within each tray (`data/`, `pure/`, `sys/`), STAFF sorts file names lexicographically in-place before reading. This guarantees 100% bitwise deterministic compilation across different filesystems (ext4, btrfs, tmpfs) and platforms.
+
+### Manifest Contract & Fail-Fast Architectural Ceilings
+
+Under SINC's Single Source of Truth principle (Rule 3) and Fail-Fast philosophy (Rule 4):
+* **Internal Triad Files Belong Exclusively to Auto-Streaming:** Files located in `data/`, `pure/`, or `sys/` are automatically streamed by STAFF. They must **never** be manually listed in `deps [...]`.
+* **Direct Structural Rejection:** If a broken manifest duplicates an internal `<root>/...` file in `deps [...]`, STAFF rejects the manifest immediately with **Exit Code 5** (`STAFF Manifest / Tray Capacity Violation`).
+* **Missing Dependencies Fail Fast:** If a path in `deps [...]` cannot be opened or read, STAFF halts immediately with **Exit Code 2** (`File Open / Read Failure`).
+* **Bounded Tray Limits:** Each triad directory tray supports up to 127 ordinary discovered `.sinc` files (with `sys/entry.sinc` becoming the 128th source in `sys/`) and a 64 KiB directory record scan buffer. Exceeding 127 discovered files immediately halts compilation with **Exit Code 5**.
 
 ---
 

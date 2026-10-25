@@ -33,7 +33,7 @@ fn main!(work_buf:64) [
 * **`!` (Effects):** Marks functions that touch memory or OS syscalls; pure `fn` functions cannot call `!` functions or write to memory.
 * **`~` (Borrowing):** Buffers and pointers move by default; trailing `~` borrows them without consuming ownership.
 * **`:N` (Bounds):** Proves array and loop limits at compile time (Error 15 on out-of-bounds) so the CPU runs raw loads and stores with zero runtime checks.
-* **`@` and `.CONST` (Memory):** Direct 64-bit word and byte addressing without struct or type-system bloat.
+* **`@` and constant lenses (Memory):** `ptr@` and `ptr@[i]` provide direct word or byte-scaled addressing; `ptr.LENS` names a fixed 8-byte slot without struct or type-system bloat.
 
 ---
 
@@ -58,6 +58,8 @@ chmod +x ./target
 ./target
 echo "Exit: $?" # prints 42
 ```
+
+> **Disassembly Note:** `packager_bin` emits lean, stripped headerless ELF binaries (`e_shnum = 0`) where the entrypoint is located at file offset `0x78` (`_start`). When inspecting compiled binaries with GNU `objdump`, pass `--start-address=0x78` (e.g. `objdump -d --start-address=0x78 ./target`) or use raw binary mode (`objdump -D -b binary -m i386:x86-64 target`).
 
 > **C/C++ FFI:** SINC also emits standard `.o` object files for direct linking into C/C++ projects via `bin/packager_o` (see [Chapter 12](manual/ch12_steel_sys.md)).
 
