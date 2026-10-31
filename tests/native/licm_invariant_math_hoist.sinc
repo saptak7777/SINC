@@ -1,0 +1,11 @@
+// EXPECT: 193
+fn main() [
+    x = 5;
+    y = 9;
+    sum = 0;
+    loop (i:10 = 0 .. 10) [
+        inv = x * 7 + y * 13 + 42;
+        sum = sum + inv + i;
+    ]
+    ret sum & 255;
+]

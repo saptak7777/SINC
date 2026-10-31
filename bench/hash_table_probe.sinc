@@ -1,0 +1,24 @@
+extern fn mmap!();
+
+fn bench_hash_probe!() [
+    table = mmap!(0, 524288, 3, 34, -1, 0);
+
+    loop (i:65536 = 0 .. 65536) [
+        table@[i * 8] = (i * 2654435761) & 65535;
+    ]
+
+    hits = 0;
+    loop (q:2000000 = 0 .. 2000000) [
+        key = (q * 1103515245 + 12345) & 65535;
+        idx = key;
+        loop (step:8 = 0 .. 8) [
+            curr = table@[idx * 8];
+            if (curr == key) [
+                hits = hits + 1;
+            ]
+            idx = (idx + step * 2 + 1) & 65535;
+        ]
+    ]
+
+    ret hits & 255;
+]

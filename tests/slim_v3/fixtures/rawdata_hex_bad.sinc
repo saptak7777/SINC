@@ -1,0 +1,7 @@
+// fixture: rawdata_hex_bad.sinc — magic number in != comparison
+fn main(slot) [
+    if (slot != 4096) [
+        ret 1;
+    ]
+    ret 0;
+]

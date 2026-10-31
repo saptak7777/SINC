@@ -1,0 +1,50 @@
+// ==========================================
+// staff/build.staff
+// SINC STAFF Self-Host Manifest
+// ==========================================
+
+artifact staff [
+    target = linux_x64;
+    type   = bin;
+]
+
+deps [
+    steel/sys/sys.sinc;
+    steel/sys/arena.sinc;
+    steel/sys/stream.sinc;
+    steel/sys/os_linux.sinc;
+    steel/data/slice.sinc;
+    steel/pure/hash.sinc;
+    steel/pure/sym_table.sinc;
+    steel/pure/ctype.sinc;
+    sinc/data/lexer.sinc;
+    sinc/data/parser_ir.sinc;
+    sinc/data/tape_ops.sinc;
+    sinc/pure/parser_bindings.sinc;
+    sinc/pure/parser_pratt.sinc;
+    sinc/sys/parser.sinc;
+    sinc/pure/inline.sinc;
+    sinc/pure/loops.sinc;
+    sinc/pure/vectorizer.sinc;
+    sinc/pure/unroll.sinc;
+    sinc/pure/simplify.sinc;
+    sinc/pure/erls.sinc;
+    sinc/pure/dce.sinc;
+    sinc/pure/x86_64.sinc;
+    sinc/pure/allocator.sinc;
+    sinc/sys/entry.sinc;
+]
+
+flags [
+    optimize = 3;
+    heap     = 134217728;
+]
+
+link [
+    host_mmap = 1;
+    host_open = 2;
+    host_read = 2;
+    host_write = 2;
+    host_exit = 1;
+    host_getdents = 2;
+]

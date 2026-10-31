@@ -1,0 +1,7 @@
+// fixture: rawdata_bad.sinc — triggers [RAWDATA] bare magic constant literal
+fn main(slot) [
+    if (slot == 65535) [
+        ret 1;
+    ]
+    ret 0;
+]

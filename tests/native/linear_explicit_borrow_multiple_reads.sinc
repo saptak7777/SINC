@@ -1,0 +1,9 @@
+// EXPECT: 30
+// Test: Explicit borrow with trailing tilde allows reading a linear resource multiple times
+fn main!() [
+    packet:8 = 10;
+    a = packet~;
+    b = packet~;
+    c = packet~;
+    ret a + b + c;
+]

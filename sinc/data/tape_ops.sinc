@@ -1,0 +1,77 @@
+// ==========================================
+// sinc/data/tape_ops.sinc
+// SINC Core: Canonical IR Tape Micro-Operations
+// ==========================================
+
+fn tape_set_4!(out_tape, idx, w0, w1, w2, w3) [
+    o = idx * 4;
+    out_tape@[o] = w0;
+    out_tape@[(o + 1)] = w1;
+    out_tape@[(o + 2)] = w2;
+    out_tape@[(o + 3)] = w3;
+    ret idx + 1;
+]
+
+fn tape_copy_4!(out_tape, dst_idx, src_tape, src_idx) [
+    s = src_idx * 4;
+    d = dst_idx * 4;
+    out_tape@[d] = src_tape@[s];
+    out_tape@[(d + 1)] = src_tape@[(s + 1)];
+    out_tape@[(d + 2)] = src_tape@[(s + 2)];
+    out_tape@[(d + 3)] = src_tape@[(s + 3)];
+    ret dst_idx + 1;
+]
+
+fn tape_clone!(arena, src_tape, len) [
+    dst = arena_alloc_words!(arena, len * 4);
+    loop (ci:10000000 = 0 .. len) [
+        _ = tape_copy_4!(dst, ci, src_tape, ci);
+    ]
+    ret dst;
+]
+
+fn tape_remap_target(tgt, curr_len, pi, first_hoisted_map, loop_body_start, index_map) [
+    if (tgt < (curr_len + 1)) [
+        if (first_hoisted_map != 0) [
+            fh = first_hoisted_map@[tgt];
+            if (fh != 4294967295) [
+                if (pi < fh) [
+                    ret fh;
+                ]
+                ret loop_body_start@[tgt];
+            ]
+        ]
+        ret index_map@[tgt];
+    ]
+    ret tgt;
+]
+
+fn tape_remap_branches!(out_tape, tape_len, index_map, orig_len, first_hoisted_map, loop_body_start) [
+    loop (pi:10000000 = 0 .. tape_len) [
+        p_off = pi * 4;
+        p_off2 = p_off + 2;
+        pw0 = out_tape@[p_off];
+        pop = pw0 & 255;
+        if ((pop == 10) | (pop == 11)) [
+            pw2 = out_tape@[p_off2];
+            new_then = tape_remap_target(pw2 & 4294967295, orig_len, pi, first_hoisted_map, loop_body_start, index_map);
+            new_else = 0;
+            if (pop == 11) [
+                new_else = tape_remap_target((pw2 >> 32) & 4294967295, orig_len, pi, first_hoisted_map, loop_body_start, index_map);
+            ]
+            out_tape@[p_off2] = new_then | (new_else << 32);
+        ]
+    ]
+    ret 0;
+]
+
+fn tape_commit!(arena, func_desc, out_tape, out_idx, orig_len, changed, index_map, first_hoisted_map, loop_body_start) [
+    if (changed == 0) [
+        ret 0;
+    ]
+    index_map@[orig_len] = out_idx;
+    tape_remap_branches!(out_tape, out_idx, index_map, orig_len, first_hoisted_map, loop_body_start);
+    func_desc@[0] = tape_clone!(arena, out_tape, out_idx);
+    func_desc@[1] = out_idx;
+    ret 1;
+]

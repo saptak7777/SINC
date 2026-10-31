@@ -1,0 +1,16 @@
+extern fn mmap!();
+
+fn bench_refinement_bounds!() [
+    table = mmap!(0, 64, 3, 34, -1, 0);
+    loop (i:8 = 0 .. 8) [
+        table@[i * 8] = i * 7 + 3;
+    ]
+
+    sum = 0;
+    loop (k:50000000 = 0 .. 50000000) [
+        idx = k & 7;
+        sum = sum + table@[idx * 8];
+    ]
+
+    ret sum & 255;
+]

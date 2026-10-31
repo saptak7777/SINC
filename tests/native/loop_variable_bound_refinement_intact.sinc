@@ -1,0 +1,25 @@
+// EXPECT: 42
+// Test: Variable-trip loop refinement bound preservation.
+// loop (i:64 = 0 .. n) must preserve i:64 refinement so indexing buf:64@[i] inside body succeeds.
+
+extern fn mmap!();
+extern fn munmap!();
+
+fn test_variable_bound_loop!(n) [
+    buf:64 = mmap!(0, 4096, 3, 34, -1, 0);
+    sum = 0;
+    loop (i:64 = 0 .. n) [
+        buf@[i] = i;
+        sum = sum + buf@[i];
+    ]
+    munmap!(buf, 4096);
+    ret sum;
+]
+
+fn main!() [
+    ans = test_variable_bound_loop!(10);
+    if (ans != 45) [
+        ret 1;
+    ]
+    ret 42;
+]

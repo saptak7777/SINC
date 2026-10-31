@@ -1,0 +1,17 @@
+// ==========================================
+// steel/pure/hash.sinc
+// S.T.E.E.L. FNV-1a Hashing Engine
+// ==========================================
+
+const FNV_OFFSET = -3750763034362895579;
+const FNV_PRIME  = 1099511628211;
+
+fn hash_fnv1a(slice) [
+    ptr = slice.SLICE_PTR;
+    len = slice.SLICE_LEN;
+    h   = FNV_OFFSET;
+    loop (idx:10000000 = 0 .. len) [
+        h = (h ^ ptr@[idx * 1]) * FNV_PRIME;
+    ]
+    ret h;
+]

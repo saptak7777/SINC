@@ -1,0 +1,25 @@
+// EXPECT: 55
+// REQUIRE_INSN: idiv
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn chain_div(val, d1, d2) [
+    if (d1 == 0) [
+        ret 0;
+    ]
+    q1 = val / d1;
+    q2 = q1 / d2;
+    ret q1 + q2 + 5;
+]
+
+fn main() [
+    val = helper(240);
+    d1 = helper(6);
+    d2 = helper(4);
+    ret chain_div(val, d1, d2);
+]

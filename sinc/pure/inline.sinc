@@ -1,0 +1,109 @@
+// ==========================================
+// sinc/pure/inline.sinc
+// SINC Compiler: Single-Block Leaf Function Inliner
+// ==========================================
+
+fn inline_remap_reg(reg, running_max, args_ptr, argc) [
+    if ((reg == 4294967295) | (reg < 0)) [
+        ret 4294967295;
+    ]
+    if (reg < argc) [
+        ret args_ptr@[reg];
+    ]
+    ret running_max + reg;
+]
+
+fn inline_is_safe_leaf(callee_tape, callee_len, caller_sym, callee_sym) [
+    if (caller_sym == callee_sym) [
+        ret 0;
+    ]
+    loop (scan_i:262144 = 0 .. callee_len) [
+        scan_off = scan_i * 4;
+        w0 = callee_tape@[scan_off];
+        op = w0 & 255;
+        if ((op == 3) | (op == 10) | (op == 11)) [
+            ret 0;
+        ]
+    ]
+    ret 1;
+]
+
+fn ir_inline!(arena, caller_desc, func_by_sym, global_scratch_tape) [
+    c_tape      = caller_desc@[0];
+    c_len       = caller_desc@[1];
+    call_table  = caller_desc@[6];
+    idx_map     = global_scratch_tape;
+    func_tape   = idx_map + ((c_len + 1) * 8);
+    inlined_any = 0;
+
+    out_idx = 0;
+    loop (c_idx:10000000 = 0 .. c_len) [
+        idx_map@[c_idx] = out_idx;
+        off = c_idx * 4;
+        w0 = c_tape@[off];
+        w2 = c_tape@[(off + 2)];
+
+        inlined = 0;
+        if ((w0 & 65535) == 259) [ // Pure Call (1 << 8 | 3)
+            w_idx = w2 * 3;
+            c_desc = func_by_sym@[call_table@[w_idx]];
+            if (c_desc != 0) [
+                callee_len = c_desc@[1];
+                if (callee_len != 0) [ // Externs have len 0
+                    callee_tape = c_desc@[0];
+                    if (inline_is_safe_leaf(callee_tape, callee_len, caller_desc@[8], c_desc@[8]) == 1) [
+                        c_max = c_desc@[2];
+                        argc = call_table@[(w_idx + 1)] & 4294967295;
+                        args_ptr = call_table@[(w_idx + 2)];
+                        r_max = caller_desc@[2];
+                        
+                        caller_desc@[2] = r_max + c_max;
+                        
+                        call_dst = (w0 >> 16) & 65535;
+                        loop (b_idx:10000000 = 0 .. callee_len) [
+                            b_off = b_idx * 4;
+                            bw0 = callee_tape@[b_off];
+                            bop = bw0 & 255;
+                            if (bop != 0) [
+                                bw1 = callee_tape@[(b_off + 1)];
+                                bsrc1 = bw1 & 4294967295;
+                                o_off = out_idx * 4;
+                                if (bop == 8) [
+                                    rm_ret = inline_remap_reg(bsrc1, r_max, args_ptr, argc);
+                                    if ((call_dst != 65535) & (rm_ret != 4294967295)) [
+                                        out_idx = tape_set_4!(func_tape, out_idx, 9 | (call_dst << 16), rm_ret, 0, 0);
+                                    ]
+                                ] else [
+                                    raw_dst = (bw0 >> 16) & 65535;
+                                    rm_dst = inline_remap_reg(raw_dst, r_max, args_ptr, argc);
+                                    func_tape@[o_off] = (bw0 & -4294901761) | (rm_dst << 16);
+                                    if (bop == 1) [
+                                        func_tape@[(o_off + 1)] = bw1;
+                                    ] else [
+                                        rm_s1 = inline_remap_reg(bsrc1, r_max, args_ptr, argc);
+                                        if ((bop == 9) | (bop == 12)) [
+                                            func_tape@[(o_off + 1)] = rm_s1;
+                                        ] else [
+                                            raw_s2 = (bw1 >> 32) & 4294967295;
+                                            rm_s2 = inline_remap_reg(raw_s2, r_max, args_ptr, argc);
+                                            func_tape@[(o_off + 1)] = rm_s1 | (rm_s2 << 32);
+                                        ]
+                                    ]
+                                    func_tape@[(o_off + 2)] = callee_tape@[(b_off + 2)];
+                                    func_tape@[(o_off + 3)] = callee_tape@[(b_off + 3)];
+                                    out_idx = out_idx + 1;
+                                ]
+                            ]
+                        ]
+                        inlined = 1;
+                        inlined_any = 1;
+                    ]
+                ]
+            ]
+        ]
+        if (inlined == 0) [
+            out_idx = tape_copy_4!(func_tape, out_idx, c_tape, c_idx);
+        ]
+    ]
+    ret tape_commit!(arena, caller_desc, func_tape, out_idx, c_len, inlined_any, idx_map, 0, 0);
+]

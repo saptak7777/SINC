@@ -1,0 +1,29 @@
+extern fn mmap!();
+
+fn bench_soa!() [
+    arena = mmap!(0, 262144, 3, 34, -1, 0);
+    pos_x = arena;
+    vel_x = arena + 65536;
+    pos_y = arena + 131072;
+    vel_y = arena + 196608;
+
+    // Initialize 8192 particles across 4 columnar SoA streams
+    loop (i:8192 = 0 .. 8192) [
+        pos_x@[i * 8] = i;
+        vel_x@[i * 8] = 1;
+        pos_y@[i * 8] = i * 2;
+        vel_y@[i * 8] = 2;
+    ]
+
+    // High-performance SoA kinematics simulation loop (5000 steps)
+    loop (step:5000 = 0 .. 5000) [
+        loop (i:8192 = 0 .. 8192) [
+            pos_x@[i * 8] = pos_x@[i * 8] + vel_x@[i * 8];
+            pos_y@[i * 8] = pos_y@[i * 8] + vel_y@[i * 8];
+        ]
+    ]
+
+    // Checksum: boundary particles reduction
+    checksum = pos_x@[0] + pos_x@[8191 * 8] + pos_y@[0] + pos_y@[8191 * 8];
+    ret checksum & 255;
+]

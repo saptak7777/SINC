@@ -1,0 +1,12 @@
+// fixture: clean_v3.sinc — no v3 violations
+// Named constant used, no self-assign, no splinter, no raw literals
+const INVALID_SLOT = 65535;
+
+fn compute(x, y) [
+    ret x + y;
+]
+
+fn main(a, b) [
+    v = compute(a, b);
+    ret v;
+]

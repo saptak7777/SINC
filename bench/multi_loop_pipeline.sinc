@@ -1,0 +1,23 @@
+extern fn mmap!();
+
+fn bench_multi_loop!() [
+    buf = mmap!(0, 65536, 3, 34, -1, 0);
+
+    loop (i:8192 = 0 .. 8192) [
+        buf@[i * 8] = (i * 3 + 1) & 255;
+    ]
+
+    loop (i:8192 = 0 .. 8192) [
+        val = buf@[i * 8];
+        buf@[i * 8] = (val * 5 + 7) & 255;
+    ]
+
+    sum = 0;
+    loop (k:10000 = 0 .. 10000) [
+        loop (i:8192 = 0 .. 8192) [
+            sum = sum + buf@[i * 8];
+        ]
+    ]
+
+    ret sum & 255;
+]

@@ -1,0 +1,12 @@
+// EXPECT: 149
+fn poly(x) [
+    ret x * x + 2 * x + 3;
+]
+
+fn main() [
+    sum = 0;
+    loop (i:10 = 0 .. 10) [
+        sum = sum + poly(i);
+    ]
+    ret sum & 255;
+]

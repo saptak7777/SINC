@@ -1,0 +1,12 @@
+// EXPECT: 144
+// REQUIRE_INSN: zmm
+// Test: 32-iteration AVX-512 loop reduction
+fn main() [
+    total = 0;
+    loop (i:32 = 0 .. 32) [
+        a = (i & 7) + 1;
+        total = total + a;
+    ]
+    ret (total & 255);
+]
+

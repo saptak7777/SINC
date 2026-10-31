@@ -1,0 +1,12 @@
+// EXPECT: 50
+// Test: Scalar division inside loop with accumulator
+fn main() [
+    divisor = 4;
+    acc = 0;
+    loop (i = 0 .. 10) [
+        dividend = i * 20; // 0, 20, 40, ...
+        q = dividend / divisor; // 0, 5, 10, ...
+        acc = acc + q; // 0 + 5 + 10 + ... + 45 = 225
+    ]
+    ret acc - 175; // 225 - 175 = 50
+]

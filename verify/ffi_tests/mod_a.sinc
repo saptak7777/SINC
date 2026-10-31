@@ -1,0 +1,3 @@
+fn compute_a(x) [
+    ret x * 3;
+]

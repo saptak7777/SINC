@@ -1,0 +1,16 @@
+fn main!() [
+    // Allocate 1MB memory buffer
+    sys_mmap!(1048576);
+    buf = 536870912; // 0x20000000 mmap base address
+    
+    // Word 0 (Bytes 0..7): "Hello, W"
+    buf@[0] = 72 | (101 << 8) | (108 << 16) | (108 << 24) | (111 << 32) | (44 << 40) | (32 << 48) | (87 << 56);
+    
+    // Word 1 (Bytes 8..13): "orld!\n"
+    buf@[1] = 111 | (114 << 8) | (108 << 16) | (100 << 24) | (33 << 32) | (10 << 40);
+    
+    // Write 14 bytes to stdout (File Descriptor 1)
+    sys_write!(1, buf, 14);
+    
+    sys_exit!(0);
+]

@@ -1,0 +1,15 @@
+// tests/staff/fixtures/invalid_triad_order.staff
+artifact broken_triad [
+    target = linux_x64;
+    type   = bin;
+    out    = bin/broken_app;
+]
+
+sources [
+    sys = [
+        tests/staff/fixtures/src/sys/main.sinc;
+    ];
+    pure = [
+        tests/staff/fixtures/src/pure/math.sinc;
+    ];
+]

@@ -1,0 +1,7 @@
+// fixture: rawdata_yoda_bad.sinc — magic number on LHS of comparison (Yoda condition)
+fn main(slot) [
+    if (4096 == slot) [
+        ret 1;
+    ]
+    ret 0;
+]

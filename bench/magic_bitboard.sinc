@@ -1,0 +1,11 @@
+fn bench_magic_bitboard() [
+    occ = 12345678901234567;
+    moves = 0;
+    loop (i:50000000 = 0 .. 50000000) [
+        blockers = occ & 72340172838076673;
+        idx = ((blockers * 35184372088832) >> 56) & 63;
+        moves = moves + (idx ^ (occ & 255)) + ((occ >> 12) & 15);
+        occ = occ + 1000000007;
+    ]
+    ret moves & 255;
+]

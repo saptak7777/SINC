@@ -1,0 +1,9 @@
+// COMPILE_ERROR: 7
+// Test: Modulo % is not a valid operator in SINC; must be cleanly rejected
+fn main() [
+    x = 10;
+    if (x % 2 == 0) [
+        ret 1;
+    ]
+    ret 0;
+]

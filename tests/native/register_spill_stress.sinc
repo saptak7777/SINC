@@ -1,0 +1,50 @@
+// EXPECT: 136
+// REQUIRE_INSN: mov.*\(%rbp\)
+// Test: High register pressure (>12 live variables) forcing spill/reload to stack frame slots
+
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn stress_spills(b) [
+    // 16 live variables created and kept alive simultaneously
+    v1 = b + 1;
+    v2 = b + 2;
+    v3 = b + 3;
+    v4 = b + 4;
+    v5 = b + 5;
+    v6 = b + 6;
+    v7 = b + 7;
+    v8 = b + 8;
+    v9 = b + 9;
+    v10 = b + 10;
+    v11 = b + 11;
+    v12 = b + 12;
+    v13 = b + 13;
+    v14 = b + 14;
+    v15 = b + 15;
+    v16 = b + 16;
+
+    // Cross-sum in reverse order so all early variables must remain live and spill
+    s1 = v16 + v1; // 16 + 1 = 17
+    s2 = v15 + v2; // 15 + 2 = 17
+    s3 = v14 + v3; // 14 + 3 = 17
+    s4 = v13 + v4; // 13 + 4 = 17
+    s5 = v12 + v5; // 12 + 5 = 17
+    s6 = v11 + v6; // 11 + 6 = 17
+    s7 = v10 + v7; // 10 + 7 = 17
+    s8 = v9 + v8;  // 9 + 8 = 17
+
+    // Total: 8 * 17 = 136
+    total = s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8;
+    ret total;
+]
+
+fn main() [
+    b = helper(0);
+    ret stress_spills(b);
+]

@@ -1,0 +1,22 @@
+// EXPECT: 25
+// Test: Divisor in non-%rcx register (3 params, divisor is 3rd = physical %rdx/%rbx)
+// divide3(a, b, c) -> a/c where c is NOT in %rcx
+fn divide3(a, b, c) [
+    ret a / c;
+]
+
+fn main() [
+    x = 0;
+    loop (i = 0 .. 100) [
+        x = x + 1;
+    ]
+    y = 0;
+    loop (j = 0 .. 2) [
+        y = y + 1;
+    ]
+    z = 0;
+    loop (k = 0 .. 4) [
+        z = z + 1;
+    ]
+    ret divide3(x, y, z);
+]

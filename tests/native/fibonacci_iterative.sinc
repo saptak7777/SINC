@@ -1,0 +1,12 @@
+// EXPECT: 55
+// Test: Iterative Fibonacci computation in a loop (Fib(10) = 55)
+fn main() [
+    a = 0;
+    b = 1;
+    loop (i:10 = 0 .. 10) [
+        next = a + b;
+        a = b;
+        b = next;
+    ]
+    ret a;
+]

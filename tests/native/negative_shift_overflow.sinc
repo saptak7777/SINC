@@ -1,0 +1,6 @@
+// COMPILE_ERROR: 16
+// Test: Shift count overflow compile-time rejection
+fn main() [
+    x = 10 >> 64;
+    ret x;
+]

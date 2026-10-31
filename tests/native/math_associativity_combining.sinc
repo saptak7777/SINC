@@ -1,0 +1,12 @@
+// EXPECT: 1
+// Test: Arithmetic associativity and constant combining in expressions
+fn main() [
+    total = 0;
+    loop (i:10 = 0 .. 10) [
+        a = 1 + (i & 7);
+        b = 2 + (i & 3);
+        c = 3 + (i & 1);
+        total = total + (a + b) * c;
+    ]
+    ret (total & 255);
+]

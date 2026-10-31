@@ -1,0 +1,12 @@
+// EXPECT: 42
+fn add(a, b) [
+    ret a + b;
+]
+
+fn twice(n) [
+    ret add(n, n);
+]
+
+fn main() [
+    ret twice(21);
+]

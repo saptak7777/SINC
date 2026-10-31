@@ -1,0 +1,70 @@
+// fixture: helper_clean.sinc — all functions are valid helpers or bridges
+extern fn sys_read!();
+
+fn target(a, b) [
+    ret a + b;
+]
+
+fn target_single(x) [
+    ret x * 2;
+]
+
+fn t1(x) [
+    ret x;
+]
+
+fn t2(x) [
+    ret x;
+]
+
+// 1. Parameter defaulting helper
+fn helper_default(a) [
+    ret target(a, 42);
+]
+
+// 2. Parameter swapping / reordering adapter
+fn helper_swap(a, b) [
+    ret target(b, a);
+]
+
+// 3. Argument computation helper
+fn helper_calc(a) [
+    ret target_single(a + 1);
+]
+
+// 4. Memory access helper
+fn helper_mem(arr, i) [
+    ret target_single(arr@[i]);
+]
+
+// 5. Guarded helper
+fn helper_guard(a, b) [
+    if (a < 0) [
+        ret 0;
+    ]
+    ret target(a, b);
+]
+
+// 6. Multi-call helper
+fn helper_multi(a) [
+    t1(a);
+    t2(a);
+    ret 0;
+]
+
+// 7. Syscall extern bridge helper
+fn my_read!(fd, buf, sz) [
+    ret sys_read!(fd, buf, sz);
+]
+
+// 8. Entrypoint wiring
+fn main(a, b) [
+    v1 = helper_default(a);
+    v2 = helper_swap(a, b);
+    v3 = helper_calc(a);
+    v4 = helper_mem(a, b);
+    v5 = helper_guard(a, b);
+    helper_multi(a);
+    my_read!(a, b, 1);
+    ret v1 + v2 + v3 + v4 + v5;
+]

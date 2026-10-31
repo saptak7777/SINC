@@ -1,0 +1,13 @@
+// EXPECT: 144
+// Test: (x & mask) != 0 branching in a loop
+fn main() [
+    total = 0;
+    loop (i:100 = 0 .. 100) [
+        if ((i & 3) != 0) [
+            total = total + 5;
+        ] else [
+            total = total + 1;
+        ]
+    ]
+    ret (total & 255);
+]

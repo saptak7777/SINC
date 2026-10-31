@@ -1,0 +1,15 @@
+fn pure_transform(c) [
+    t1 = c * 1103515245 + 12345;
+    ret (t1 >> 16) & 65535;
+]
+
+fn bench_pure_licm() [
+    sum = 0;
+    k = 42;
+    loop (i:50000000 = 0 .. 50000000) [
+        invariant_val = pure_transform(k);
+        dynamic_val = pure_transform(i & 255);
+        sum = sum + invariant_val + dynamic_val;
+    ]
+    ret sum & 255;
+]

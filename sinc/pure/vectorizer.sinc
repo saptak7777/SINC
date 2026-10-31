@@ -1,0 +1,134 @@
+// ==========================================
+// sinc/pure/vectorizer.sinc
+// SINC Compiler: AVX-512 Loop Auto-Vectorizer
+// Architecture: Single-Pass Dependency Check & 8-Lane ZMM Body Stamp
+// ==========================================
+
+fn ir_vectorizer!(func_desc, tape_ptr, header_idx, latch_idx, hoist_target, max_reg, vec_scratch) [
+    if (latch_idx < 6) [
+        ret 0;
+    ]
+    w3_hi = tape_ptr@[(latch_idx * 4 + 3)] >> 32;
+    body_end = latch_idx - 4;
+    if ((w3_hi < 9) | ((w3_hi & 7) != 0) | (tape_ptr@[(body_end * 4 + 2)] != 1)) [
+        ret 0;
+    ]
+
+    defined_in_body = vec_scratch;
+    used_before_def = vec_scratch + ((max_reg + 1) * 8);
+
+    loop (zi:10000000 = 0 .. (max_reg + 1)) [
+        defined_in_body@[zi] = 0;
+        used_before_def@[zi] = 0;
+    ]
+
+    loop_var = (tape_ptr@[(latch_idx * 4 + 1)] >> 32) & 65535;
+
+    has_branch = 0;
+    acc_v = 65535;
+    sec_iv = 65535;
+    sec_tmp = 65535;
+    sec_iv_off = 0;
+    has_stores = 0;
+
+    // 1. Unified Loop Body Analysis: Purity, IV/Accumulator Discovery & Use-Def Tracking
+    loop (bi:1000 = header_idx .. body_end) [
+        if (hoist_target@[bi] == 4294967295) [
+            bi_off = bi * 4;
+            bw0 = tape_ptr@[bi_off];
+            b_op = bw0 & 255;
+            if (b_op > 1) [
+                b_dst = (bw0 >> 16) & 65535;
+                b_sc = (bw0 >> 8) & 255;
+                if ((((bw0 >> 48) & 255) > 2) | (b_op == 3)) [
+                    has_branch = 1;
+                ]
+                bw1 = tape_ptr@[(bi_off + 1)];
+                s2 = (bw1 >> 32) & 4294967295;
+                loop (oi:2 = 0 .. 2) [
+                    bs = (bw1 >> (oi * 32)) & 4294967295;
+                    if (bs != 4294967295) [
+                        if (defined_in_body@[bs] != 1) [
+                            used_before_def@[bs] = 1;
+                        ]
+                    ]
+                ]
+                if ((b_dst != 65535) & (b_dst != loop_var)) [
+                    if ((used_before_def@[b_dst] == 1) & (b_dst != acc_v) & (b_dst != sec_iv)) [
+                        has_branch = 1;
+                    ]
+                    defined_in_body@[b_dst] = 1;
+                ]
+                if ((b_op == 2) | (b_op == 7)) [
+                    if (((s2 != 4294967295) & (s2 != loop_var)) | ((b_sc != 0) & (b_sc != 8))) [
+                        has_branch = 1;
+                    ]
+                    if (b_op == 7) [
+                        if (b_dst == loop_var) [
+                            has_branch = 1;
+                        ]
+                        has_stores = 1;
+                    ]
+                ]
+                if (b_op == 4) [
+                    if ((b_sc == 3) | (((b_sc == 7) | (b_sc == 8)) & ((s2 == loop_var) | (defined_in_body@[s2] == 1)))) [
+                        has_branch = 1;
+                    ]
+                    nw0 = tape_ptr@[((bi + 1) * 4)];
+                    ndst = (nw0 >> 16) & 65535;
+                    if (((nw0 & 255) == 9) & ((tape_ptr@[((bi + 1) * 4 + 1)] & 4294967295) == b_dst)) [
+                        root_acc = bw1 & 4294967295;
+                        if (s2 == ndst) [
+                            root_acc = s2;
+                        ]
+                        // 1-to-2 instruction lookback to find root accumulator
+                        loop (lb:2 = 1 .. 3) [
+                            if ((root_acc != ndst) & (bi > (lb - 1))) [
+                                if (((tape_ptr@[((bi - lb) * 4)] >> 16) & 65535) == (bw1 & 4294967295)) [
+                                    root_acc = tape_ptr@[((bi - lb) * 4 + 1)] & 4294967295;
+                                ]
+                            ]
+                        ]
+                        if (ndst == root_acc) [
+                            if (acc_v == 65535) [
+                                acc_v = ndst;
+                            ]
+                            if ((ndst != acc_v) & (sec_iv == 65535)) [
+                                sec_iv = ndst;
+                                sec_tmp = b_dst;
+                                sec_iv_off = (bi + 1) * 4;
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+    // 2. AVX-512 Role Stamping
+    if ((has_branch == 0) & ((acc_v != 65535) | (has_stores == 1))) [
+        func_desc@[9] = 1;
+        tape_ptr@[((latch_idx - 2) * 4)] = tape_ptr@[((latch_idx - 2) * 4)] | (ROLE_VEC_INDUCT << 32);
+        if (sec_iv != 65535) [
+            tape_ptr@[sec_iv_off] = tape_ptr@[sec_iv_off] | (ROLE_VEC_INDUCT << 32);
+            tape_ptr@[(sec_iv_off - 6)] = 8;
+        ]
+        loop (vbi:1000 = header_idx .. body_end) [
+            vbi_off = vbi * 4;
+            if ((tape_ptr@[vbi_off] & 255) == 1) [
+                hoist_target@[vbi] = header_idx;
+                tape_ptr@[vbi_off] = tape_ptr@[vbi_off] | (ROLE_VEC_8LANE << 32);
+            ] else [
+                if (hoist_target@[vbi] == 4294967295) [
+                    vb_dst = (tape_ptr@[vbi_off] >> 16) & 65535;
+                    if ((vb_dst != 65535) & (vb_dst != loop_var) & (vb_dst != sec_iv) & (vb_dst != sec_tmp)) [
+                        tape_ptr@[vbi_off] = tape_ptr@[vbi_off] | (ROLE_VEC_8LANE << 32);
+                    ]
+                ]
+            ]
+        ]
+        tape_ptr@[(body_end * 4 + 2)] = 8;
+        ret 1;
+    ]
+    ret 0;
+]

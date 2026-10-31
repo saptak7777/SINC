@@ -1,0 +1,8 @@
+// COMPILE_ERROR: 15
+// Test: Borrowed slice preserves capacity bound and rejects out-of-bounds access
+fn main() [
+    buf:64 = 0;
+    p = buf~;
+    val = p@[100];
+    ret val;
+]

@@ -1,0 +1,14 @@
+// EXPECT: 120
+// Test: Multi-argument tree reduction across scalar registers
+fn sum_quadwords(a, b, c, d, e, f, g, h) [
+    s1 = a + b;
+    s2 = c + d;
+    s3 = e + f;
+    s4 = g + h;
+    ret (s1 + s2) + (s3 + s4);
+]
+
+fn main() [
+    res = sum_quadwords(5, 10, 15, 20, 15, 20, 15, 20);
+    ret res;
+]

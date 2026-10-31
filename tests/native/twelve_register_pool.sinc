@@ -1,0 +1,29 @@
+// EXPECT: 78
+// REQUIRE_INSN: add
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn main() [
+    // 12 distinct variables all live simultaneously at runtime
+    base = helper(0);
+    a = base + 1;
+    b = base + 2;
+    c = base + 3;
+    d = base + 4;
+    e = base + 5;
+    f = base + 6;
+    g = base + 7;
+    h = base + 8;
+    i = base + 9;
+    j = base + 10;
+    k = base + 11;
+    l = base + 12;
+    // Sum of 1 to 12 is 78
+    sum = a + b + c + d + e + f + g + h + i + j + k + l;
+    ret sum;
+]

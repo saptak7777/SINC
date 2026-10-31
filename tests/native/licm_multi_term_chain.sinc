@@ -1,0 +1,19 @@
+// EXPECT: 180
+// Test: Phase 5 LICM — Topological cascade hoisting of dependent invariant math
+fn main() [
+    a = 6;
+    b = 4;
+    c = 8;
+    sum = 0;
+    loop (i:5 = 0 .. 5) [
+        // Level 1: Invariant from outer scope
+        t1 = a * b; // 24
+        // Level 2: Invariant dependent on Level 1
+        t2 = t1 + c; // 32
+        // Level 3: Invariant dependent on Level 2
+        t3 = t2 + 4; // 36
+        sum = sum + t3;
+    ]
+    // 5 iterations * 36 = 180
+    ret sum & 255;
+]

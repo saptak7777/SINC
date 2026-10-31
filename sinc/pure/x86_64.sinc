@@ -1,0 +1,1214 @@
+// ==========================================
+// sinc/pure/x86_64.sinc
+// SINC Compiler: Native x86-64 Machine Code Emitter
+// ==========================================
+
+fn emit_u8!(buffer, cursor_ptr, byte_val) [
+    cursor = cursor_ptr@[0];
+    buffer@[cursor * 1] = byte_val & 255;
+    cursor_ptr@[0] = cursor + 1;
+    ret 0;
+]
+
+fn emit_u32!(buffer, cursor_ptr, val32) [
+    emit_u8!(buffer, cursor_ptr, val32);
+    emit_u8!(buffer, cursor_ptr, val32 >> 8);
+    emit_u8!(buffer, cursor_ptr, val32 >> 16);
+    emit_u8!(buffer, cursor_ptr, val32 >> 24);
+    ret 0;
+]
+
+fn emit_rex_w!(buffer, cursor_ptr, reg, rm) [
+    rex_r = 4 * (reg > 7);
+    rex_b = 1 * (rm > 7);
+    ret emit_u8!(buffer, cursor_ptr, 72 + rex_r + rex_b);
+]
+
+fn emit_rex_b!(buffer, cursor_ptr, rm) [
+    rex_b = 1 * (rm > 7);
+    ret emit_u8!(buffer, cursor_ptr, 72 + rex_b);
+]
+
+fn emit_rex_rxb!(buffer, cursor_ptr, reg, idx, base) [
+    rex_r = 4 * (reg > 7);
+    rex_x = 2 * (idx > 7);
+    rex_b = 1 * (base > 7);
+    ret emit_u8!(buffer, cursor_ptr, 72 + rex_r + rex_x + rex_b);
+]
+
+fn emit_modrm_reg!(buffer, cursor_ptr, reg, rm) [
+    ret emit_u8!(buffer, cursor_ptr, 192 + ((reg & 7) * 8) + (rm & 7));
+]
+
+fn emit_sib_lea!(buffer, cursor_ptr, target_phys, base_p, idx_p, sc, disp) [
+    emit_rex_rxb!(buffer, cursor_ptr, target_phys, idx_p, base_p);
+    emit_u8!(buffer, cursor_ptr, 141);
+    modrm_b = 4;
+    has_disp = 0;
+    if ((disp != 0) | ((base_p & 7) == 5)) [
+        if ((disp > -129) & (disp < 128)) [
+            modrm_b = 68;
+            has_disp = 1;
+        ] else [
+            modrm_b = 132;
+            has_disp = 2;
+        ]
+    ]
+    emit_u8!(buffer, cursor_ptr, modrm_b + ((target_phys & 7) * 8));
+    emit_u8!(buffer, cursor_ptr, (sc * 64) + ((idx_p & 7) * 8) + (base_p & 7));
+    if (has_disp == 1) [
+        emit_u8!(buffer, cursor_ptr, disp & 255);
+    ]
+    if (has_disp == 2) [
+        emit_u32!(buffer, cursor_ptr, disp);
+    ]
+    ret 0;
+]
+
+fn emit_vex3!(buffer, cursor_ptr, dst_phys, src1_phys, src2_phys, map_sel, w_bit, pp, opcode) [
+    emit_u8!(buffer, cursor_ptr, 196);
+    b2 = map_sel & 31;
+    if (dst_phys < 8) [
+        b2 = b2 | 128;
+    ]
+    b2 = b2 | 64;
+    if (src1_phys < 8) [
+        b2 = b2 | 32;
+    ]
+    emit_u8!(buffer, cursor_ptr, b2);
+    b3 = pp & 3;
+    if (w_bit == 1) [
+        b3 = b3 | 128;
+    ]
+    inv_v = (15 - (src2_phys & 15)) & 15;
+    b3 = b3 | (inv_v << 3);
+    emit_u8!(buffer, cursor_ptr, b3);
+    emit_u8!(buffer, cursor_ptr, opcode);
+    modrm = 192 | ((dst_phys & 7) << 3) | (src1_phys & 7);
+    emit_u8!(buffer, cursor_ptr, modrm);
+    ret 0;
+]
+
+fn emit_evex512!(buffer, cursor_ptr, dst, src1, src2, map_sel, w_bit, pp, opcode) [
+    dst_idx = dst;
+    if (dst_idx > 15) [
+        dst_idx = dst_idx - 16;
+    ]
+    src1_idx = src1;
+    if (src1_idx > 15) [
+        src1_idx = src1_idx - 16;
+    ]
+    src2_idx = src2;
+    if (src2_idx > 15) [
+        src2_idx = src2_idx - 16;
+    ]
+
+    emit_u8!(buffer, cursor_ptr, 98);
+    b1 = map_sel & 7;
+    if ((dst_idx & 8) == 0) [
+        b1 = b1 | 128;
+    ]
+    if ((src1_idx & 16) == 0) [
+        b1 = b1 | 64;
+    ]
+    if ((src1_idx & 8) == 0) [
+        b1 = b1 | 32;
+    ]
+    if ((dst_idx & 16) == 0) [
+        b1 = b1 | 16;
+    ]
+    emit_u8!(buffer, cursor_ptr, b1);
+    b2 = 4 | (pp & 3);
+    if (w_bit == 1) [
+        b2 = b2 | 128;
+    ]
+    inv_v = (15 - (src2_idx & 15)) & 15;
+    b2 = b2 | (inv_v << 3);
+    emit_u8!(buffer, cursor_ptr, b2);
+    b3 = 64;
+    if ((src2_idx & 16) == 0) [
+        b3 = b3 | 8;
+    ]
+    emit_u8!(buffer, cursor_ptr, b3);
+    emit_u8!(buffer, cursor_ptr, opcode);
+    modrm = 192 | ((dst_idx & 7) << 3) | (src1_idx & 7);
+    emit_u8!(buffer, cursor_ptr, modrm);
+    ret 0;
+]
+
+fn emit_evex_hsum_zmm0!(buffer, cursor_ptr) [
+    // vextracti64x4 ymm1, zmm0, 1
+    emit_u8!(buffer, cursor_ptr, 98);
+    emit_u8!(buffer, cursor_ptr, 243);
+    emit_u8!(buffer, cursor_ptr, 253);
+    emit_u8!(buffer, cursor_ptr, 72);
+    emit_u8!(buffer, cursor_ptr, 59);
+    emit_u8!(buffer, cursor_ptr, 193);
+    emit_u8!(buffer, cursor_ptr, 1);
+    // vpaddq ymm0, ymm0, ymm1
+    emit_u8!(buffer, cursor_ptr, 197);
+    emit_u8!(buffer, cursor_ptr, 253);
+    emit_u8!(buffer, cursor_ptr, 212);
+    emit_u8!(buffer, cursor_ptr, 193);
+    // vextracti128 xmm1, ymm0, 1
+    emit_u8!(buffer, cursor_ptr, 196);
+    emit_u8!(buffer, cursor_ptr, 227);
+    emit_u8!(buffer, cursor_ptr, 125);
+    emit_u8!(buffer, cursor_ptr, 57);
+    emit_u8!(buffer, cursor_ptr, 193);
+    emit_u8!(buffer, cursor_ptr, 1);
+    // vpaddq xmm0, xmm0, xmm1
+    emit_u8!(buffer, cursor_ptr, 197);
+    emit_u8!(buffer, cursor_ptr, 249);
+    emit_u8!(buffer, cursor_ptr, 212);
+    emit_u8!(buffer, cursor_ptr, 193);
+    // vpextrq r10, xmm0, 1  (use dedicated scratch %r10, never %rcx which is allocatable GPR 1)
+    emit_u8!(buffer, cursor_ptr, 196);
+    emit_u8!(buffer, cursor_ptr, 195);
+    emit_u8!(buffer, cursor_ptr, 249);
+    emit_u8!(buffer, cursor_ptr, 22);
+    emit_u8!(buffer, cursor_ptr, 194);
+    emit_u8!(buffer, cursor_ptr, 1);
+    // vmovq rax, xmm0
+    emit_u8!(buffer, cursor_ptr, 196);
+    emit_u8!(buffer, cursor_ptr, 225);
+    emit_u8!(buffer, cursor_ptr, 249);
+    emit_u8!(buffer, cursor_ptr, 126);
+    emit_u8!(buffer, cursor_ptr, 192);
+    // add rax, r10
+    emit_u8!(buffer, cursor_ptr, 73);
+    emit_u8!(buffer, cursor_ptr, 3);
+    emit_u8!(buffer, cursor_ptr, 194);
+    ret 0;
+]
+
+fn ra_emit_vec_to_gpr!(buffer, cursor_ptr, gpr_dst, vec_src) [
+    if (vec_src != 16) [
+        emit_evex512!(buffer, cursor_ptr, 16, vec_src, 0, 1, 1, 1, 111);
+    ]
+    emit_evex_hsum_zmm0!(buffer, cursor_ptr);
+    if (gpr_dst != 0) [
+        emit_rex_b!(buffer, cursor_ptr, gpr_dst);
+        emit_u8!(buffer, cursor_ptr, 137);
+        emit_modrm_reg!(buffer, cursor_ptr, 0, gpr_dst);
+    ]
+    ret 0;
+]
+
+fn emit_evex_init_ramp30!(buffer, cursor_ptr) [
+    loop (i:8 = 0 .. 8) [
+        val = 7 - i;
+        emit_u8!(buffer, cursor_ptr, 106);
+        emit_u8!(buffer, cursor_ptr, val);
+    ]
+    // vmovdqu64 (%rsp), %zmm30
+    emit_u8!(buffer, cursor_ptr, 98);
+    emit_u8!(buffer, cursor_ptr, 97);
+    emit_u8!(buffer, cursor_ptr, 254);
+    emit_u8!(buffer, cursor_ptr, 72);
+    emit_u8!(buffer, cursor_ptr, 111);
+    emit_u8!(buffer, cursor_ptr, 52);
+    emit_u8!(buffer, cursor_ptr, 36);
+    emit_u8!(buffer, cursor_ptr, 72);
+    emit_u8!(buffer, cursor_ptr, 131);
+    emit_u8!(buffer, cursor_ptr, 196);
+    emit_u8!(buffer, cursor_ptr, 64);
+    ret 0;
+]
+
+fn emit_prologue!(buffer, cursor_ptr, num_spills) [
+    // 1. push rbp (0x55)
+    emit_u8!(buffer, cursor_ptr, 85);
+    
+    // 2. mov rbp, rsp (0x48, 0x89, 0xE5)
+    emit_u8!(buffer, cursor_ptr, 72);
+    emit_u8!(buffer, cursor_ptr, 137);
+    emit_u8!(buffer, cursor_ptr, 229);
+    
+    stack_size = ((num_spills + 1) >> 1) << 4;
+    if (stack_size > 0) [
+        emit_u8!(buffer, cursor_ptr, 72);
+        emit_u8!(buffer, cursor_ptr, 129);
+        emit_u8!(buffer, cursor_ptr, 236);
+        emit_u32!(buffer, cursor_ptr, stack_size);
+    ]
+    ret 0;
+]
+
+// ra_emit_mem_operand!
+fn ra_emit_mem_operand!(buffer, cursor_ptr, reg, slot) [
+    offset = 0 - ((slot * 8) + 8);
+    if (slot < 16) [
+        emit_u8!(buffer, cursor_ptr, 64 + ((reg & 7) * 8) + 5);
+        emit_u8!(buffer, cursor_ptr, offset & 255);
+    ] else [
+        emit_u8!(buffer, cursor_ptr, 128 + ((reg & 7) * 8) + 5);
+        emit_u32!(buffer, cursor_ptr, offset);
+    ]
+    ret 0;
+]
+
+// ra_load_into_phys!
+fn ra_load_into_phys!(buffer, cursor_ptr, v, phys_dst, loc_map, iv) [
+    loc = loc_map@[v];
+    if (loc < 64) [
+        src_phys = loc;
+        if (phys_dst == src_phys) [
+            ret 0;
+        ]
+        if ((phys_dst > 15) & (phys_dst < 48)) [
+            if ((src_phys > 15) & (src_phys < 48)) [
+                emit_evex512!(buffer, cursor_ptr, phys_dst, src_phys, 0, 1, 1, 1, 111);
+                ret 0;
+            ]
+            emit_evex512!(buffer, cursor_ptr, phys_dst, src_phys, 0, 2, 1, 1, 124);
+            if (iv@[v] == 3) [
+                emit_evex512!(buffer, cursor_ptr, phys_dst, 46, phys_dst, 1, 1, 1, 212);
+            ]
+            ret 0;
+        ]
+        if ((src_phys > 15) & (src_phys < 48)) [
+            ra_emit_vec_to_gpr!(buffer, cursor_ptr, phys_dst, src_phys);
+            ret 0;
+        ]
+        emit_rex_w!(buffer, cursor_ptr, phys_dst, src_phys);
+        emit_u8!(buffer, cursor_ptr, 139);
+        emit_modrm_reg!(buffer, cursor_ptr, phys_dst, src_phys);
+        ret 0;
+    ]
+    if (loc != 65535) [
+        slot = loc - 64;
+        if ((phys_dst > 15) & (phys_dst < 48)) [
+            emit_u8!(buffer, cursor_ptr, 76);
+            emit_u8!(buffer, cursor_ptr, 139);
+            ra_emit_mem_operand!(buffer, cursor_ptr, 10, slot);
+            emit_evex512!(buffer, cursor_ptr, phys_dst, 10, 0, 2, 1, 1, 124);
+            if (iv@[v] == 3) [
+                emit_evex512!(buffer, cursor_ptr, phys_dst, 46, phys_dst, 1, 1, 1, 212);
+            ]
+            ret 0;
+        ]
+        emit_rex_w!(buffer, cursor_ptr, phys_dst, 0);
+        emit_u8!(buffer, cursor_ptr, 139);
+        ra_emit_mem_operand!(buffer, cursor_ptr, phys_dst, slot);
+        ret 0;
+    ]
+    ret 0;
+]
+
+// ra_store_from_phys!
+fn ra_store_from_phys!(buffer, cursor_ptr, v, src_phys, loc_map) [
+    if (v == 65535) [
+        ret 0;
+    ]
+    loc = loc_map@[v];
+    if (loc < 64) [
+        dst_phys = loc;
+        if (dst_phys != src_phys) [
+            if ((dst_phys > 15) & (dst_phys < 48)) [
+                if ((src_phys > 15) & (src_phys < 48)) [
+                    emit_evex512!(buffer, cursor_ptr, dst_phys, src_phys, 0, 1, 1, 1, 111);
+                ] else [
+                    emit_vex3!(buffer, cursor_ptr, dst_phys & 15, src_phys, 0, 1, 1, 1, 110);
+                ]
+            ] else [
+                if ((src_phys > 15) & (src_phys < 48)) [
+                    ra_emit_vec_to_gpr!(buffer, cursor_ptr, dst_phys, src_phys);
+                ] else [
+                    emit_rex_w!(buffer, cursor_ptr, src_phys, dst_phys);
+                    emit_u8!(buffer, cursor_ptr, 137);
+                    emit_modrm_reg!(buffer, cursor_ptr, src_phys, dst_phys);
+                ]
+            ]
+        ]
+        ret 0;
+    ]
+    if (loc != 65535) [
+        slot = loc - 64;
+        spill_reg = src_phys;
+        if ((src_phys > 15) & (src_phys < 48)) [
+            ra_emit_vec_to_gpr!(buffer, cursor_ptr, 0, src_phys);
+            spill_reg = 0;
+        ]
+        emit_rex_w!(buffer, cursor_ptr, spill_reg, 0);
+        emit_u8!(buffer, cursor_ptr, 137);
+        ra_emit_mem_operand!(buffer, cursor_ptr, spill_reg, slot);
+    ]
+    ret 0;
+]
+
+// ra_emit_bin!
+fn ra_emit_bin!(buffer, cursor_ptr, dst, src1, src2, aux_op, loc_map, w0, w2, iv) [
+    dst_loc = loc_map@[dst];
+    src1_loc = loc_map@[src1];
+    src2_loc = 65535;
+    if (src2 != 4294967295) [
+        src2_loc = loc_map@[src2];
+    ]
+
+    // Stage 1: Vector EVEX (AVX-512) 3-Address Direct Emission
+    if ((dst_loc > 15) & (dst_loc < 46)) [
+        s1 = src1_loc;
+        if ((s1 < 16) | (s1 > 47)) [
+            s1 = dst_loc;
+            if (dst_loc == src2_loc) [
+                s1 = 47;
+            ]
+            ra_load_into_phys!(buffer, cursor_ptr, src1, s1, loc_map, iv);
+        ]
+        s2 = src2_loc;
+        if (src2 == src1) [
+            s2 = s1;
+        ]
+        if ((s2 < 16) | (s2 > 47)) [
+            s2 = 47;
+            ra_load_into_phys!(buffer, cursor_ptr, src2, 47, loc_map, iv);
+        ]
+        if ((aux_op == 7) | (aux_op == 8)) [
+            emit_evex512!(buffer, cursor_ptr, 20 - (aux_op * 2), s1, dst_loc, 1, 1, 1, 114);
+            emit_u8!(buffer, cursor_ptr, w2 & 255);
+            ra_store_from_phys!(buffer, cursor_ptr, dst, dst_loc, loc_map);
+            ret 0;
+        ]
+        evex_map = 1 + (aux_op == 2);
+        // Packed EVEX opcodes: 0: 0xd4 (vpaddq), 1: 0xfb (vpsubq), 2: 0x40 (vpmullq), 4: 0xdb (vpandq), 5: 0xeb (vporq), 6: 0xef (vpxorq)
+        evex_opc = (67531845268470740 >> (aux_op * 8)) & 255;
+        emit_evex512!(buffer, cursor_ptr, dst_loc, s2, s1, evex_map, 1, 1, evex_opc);
+        ra_store_from_phys!(buffer, cursor_ptr, dst, dst_loc, loc_map);
+        ret 0;
+    ]
+
+    use_imm = ((w0 >> 56) & 2) != 0;
+    imm = w2;
+
+    // Stage 2: Signed Integer Division Isolated Emission
+    if (aux_op == 3) [
+        ra_load_into_phys!(buffer, cursor_ptr, src1, 0, loc_map, iv);
+        if (use_imm == 1) [
+            emit_u8!(buffer, cursor_ptr, 73);
+            emit_u8!(buffer, cursor_ptr, 186);
+            emit_u32!(buffer, cursor_ptr, imm & 4294967295);
+            emit_u32!(buffer, cursor_ptr, (imm >> 32) & 4294967295);
+        ] else [
+            ra_load_into_phys!(buffer, cursor_ptr, src2, 10, loc_map, iv);
+        ]
+        emit_u8!(buffer, cursor_ptr, 82);
+        emit_u8!(buffer, cursor_ptr, 72);
+        emit_u8!(buffer, cursor_ptr, 153);
+        emit_u8!(buffer, cursor_ptr, 73);
+        emit_u8!(buffer, cursor_ptr, 247);
+        emit_u8!(buffer, cursor_ptr, 250);
+        emit_u8!(buffer, cursor_ptr, 90);
+        ra_store_from_phys!(buffer, cursor_ptr, dst, 0, loc_map);
+        ret 0;
+    ]
+
+    target_phys = dst_loc;
+    if (dst_loc > 15) [
+        target_phys = 10;
+    ]
+
+    // Stage 3: BMI1 / BMI2 3-Address Direct Emission
+    if ((use_imm == 0) & ((aux_op == 7) | (aux_op == 8) | (aux_op == 11))) [
+        s1 = src1_loc;
+        if (src1_loc > 15) [
+            ra_load_into_phys!(buffer, cursor_ptr, src1, 11, loc_map, iv);
+            s1 = 11;
+        ]
+        s2 = src2_loc;
+        if (src2_loc > 15) [
+            ra_load_into_phys!(buffer, cursor_ptr, src2, 10, loc_map, iv);
+            s2 = 10;
+        ]
+        pp = 1 + (aux_op == 8);
+        if (aux_op == 11) [
+            emit_vex3!(buffer, cursor_ptr, target_phys, s2, s1, 2, 1, 0, 242);
+        ] else [
+            emit_vex3!(buffer, cursor_ptr, target_phys, s1, s2, 2, 1, pp, 247);
+        ]
+        ra_store_from_phys!(buffer, cursor_ptr, dst, target_phys, loc_map);
+        ret 0;
+    ]
+
+    // Stage 4: LEA 3-Address Integer Addition
+    if ((aux_op == 0) & (target_phys < 16) & (dst_loc < 16) & (dst_loc != src1_loc) & (src1_loc < 16)) [
+        if (use_imm == 1) [
+            emit_rex_w!(buffer, cursor_ptr, target_phys, src1_loc);
+            emit_u8!(buffer, cursor_ptr, 141);
+            if ((imm > -129) & (imm < 128)) [
+                emit_u8!(buffer, cursor_ptr, 64 + ((target_phys & 7) * 8) + (src1_loc & 7));
+                emit_u8!(buffer, cursor_ptr, imm & 255);
+            ] else [
+                emit_u8!(buffer, cursor_ptr, 128 + ((target_phys & 7) * 8) + (src1_loc & 7));
+                emit_u32!(buffer, cursor_ptr, imm);
+            ]
+            ra_store_from_phys!(buffer, cursor_ptr, dst, target_phys, loc_map);
+            ret 0;
+        ] else [
+            if (src2_loc < 16) [
+                base_p = src1_loc;
+                idx_p = src2_loc;
+                if (((base_p & 7) == 5) & ((idx_p & 7) != 5)) [
+                    base_p = src2_loc;
+                    idx_p = src1_loc;
+                ]
+                emit_sib_lea!(buffer, cursor_ptr, target_phys, base_p, idx_p, 0, 0);
+                ra_store_from_phys!(buffer, cursor_ptr, dst, target_phys, loc_map);
+                ret 0;
+            ]
+        ]
+    ]
+
+    // Stage 4b: SIB LEA 1-Cycle Multiplications by {3, 5, 9}
+    if ((aux_op == 2) & (use_imm == 1) & (src1_loc < 16) & ((imm == 3) | (imm == 5) | (imm == 9))) [
+        sc = 1 + (imm > 3) + (imm > 5);
+        emit_sib_lea!(buffer, cursor_ptr, target_phys, src1_loc, src1_loc, sc, 0);
+        ra_store_from_phys!(buffer, cursor_ptr, dst, target_phys, loc_map);
+        ret 0;
+    ]
+
+    // Stage 4c: Native 3-Address IMUL (target = src1 * imm32)
+    if ((aux_op == 2) & (use_imm == 1)) [
+        s1 = src1_loc;
+        if (src1_loc > 15) [
+            ra_load_into_phys!(buffer, cursor_ptr, src1, target_phys, loc_map, iv);
+            s1 = target_phys;
+        ]
+        emit_rex_w!(buffer, cursor_ptr, target_phys, s1);
+        emit_u8!(buffer, cursor_ptr, 105);
+        emit_modrm_reg!(buffer, cursor_ptr, target_phys, s1);
+        emit_u32!(buffer, cursor_ptr, imm);
+        ra_store_from_phys!(buffer, cursor_ptr, dst, target_phys, loc_map);
+        ret 0;
+    ]
+
+    // Stage 5: Clean 2-Address Scalar ALU Emission
+    if ((use_imm == 0) & (((117 >> aux_op) & 1) != 0) & (target_phys == src2_loc) & (target_phys != src1_loc)) [
+        tmp_src  = src1;
+        src1     = src2;
+        src2     = tmp_src;
+        tmp_loc  = src1_loc;
+        src1_loc = src2_loc;
+        src2_loc = tmp_loc;
+    ]
+    s2_phys = src2_loc;
+    if (use_imm == 0) [
+        if ((src2_loc > 15) | ((target_phys == src2_loc) & (target_phys != src1_loc))) [
+            ra_load_into_phys!(buffer, cursor_ptr, src2, 11, loc_map, iv);
+            s2_phys = 11;
+        ]
+    ]
+    if (target_phys != src1_loc) [
+        ra_load_into_phys!(buffer, cursor_ptr, src1, target_phys, loc_map, iv);
+    ]
+
+    if (use_imm == 1) [
+        emit_rex_b!(buffer, cursor_ptr, target_phys);
+        is_shift = (aux_op == 7) | (aux_op == 8);
+        is_b = (imm > -129) & (imm < 128) & (is_shift == 0);
+        // Packed ModR/M reg codes for imm ALU: 0: add (/0), 1: sub (/5), 4: and (/4), 5: or (/1), 6: xor (/6)
+        mreg = ((101974096 >> (aux_op * 4)) & 15) * (is_shift == 0) + (4 + (3 * (aux_op == 8))) * is_shift;
+        opc = 129 + (64 * is_shift) + (2 * is_b);
+        emit_u8!(buffer, cursor_ptr, opc);
+        emit_modrm_reg!(buffer, cursor_ptr, mreg, target_phys);
+        if ((is_shift == 1) | (is_b == 1)) [
+            emit_u8!(buffer, cursor_ptr, imm & 255);
+        ] else [
+            emit_u32!(buffer, cursor_ptr, imm);
+        ]
+    ] else [
+        emit_rex_w!(buffer, cursor_ptr, target_phys, s2_phys);
+        if (aux_op == 2) [
+            emit_u8!(buffer, cursor_ptr, 15);
+            emit_u8!(buffer, cursor_ptr, 175);
+        ] else [
+            // Packed ALU reg-reg opcodes: 0: 0x03 (add), 1: 0x2b (sub), 4: 0x23 (and), 5: 0x0b (or), 6: 0x33 (xor)
+            alu_byte = (14367468764015363 >> (aux_op * 8)) & 255;
+            emit_u8!(buffer, cursor_ptr, alu_byte);
+        ]
+        emit_modrm_reg!(buffer, cursor_ptr, target_phys, s2_phys);
+    ]
+    ra_store_from_phys!(buffer, cursor_ptr, dst, target_phys, loc_map);
+    ret 0;
+]
+
+// ra_emit_cmp!
+fn ra_emit_cmp!(buffer, cursor_ptr, dst, src1, src2, cmp_op, loc_map, w0, w2, is_fused, iv) [
+    s1_reg = loc_map@[src1];
+    if (s1_reg > 15) [
+        ra_load_into_phys!(buffer, cursor_ptr, src1, 11, loc_map, iv);
+        s1_reg = 11;
+    ]
+    if (((w0 >> 56) & 2) != 0) [
+        imm_c = w2;
+        is_b = (imm_c > -129) & (imm_c < 128);
+        emit_rex_b!(buffer, cursor_ptr, s1_reg);
+        emit_u8!(buffer, cursor_ptr, 129 + (2 * is_b));
+        emit_u8!(buffer, cursor_ptr, 248 + (s1_reg & 7));
+        if (is_b == 1) [
+            emit_u8!(buffer, cursor_ptr, imm_c & 255);
+        ] else [
+            emit_u32!(buffer, cursor_ptr, imm_c);
+        ]
+    ] else [
+        s2_loc = loc_map@[src2];
+        if ((s2_loc > 63) & (s2_loc != 65535)) [
+            emit_rex_w!(buffer, cursor_ptr, s1_reg, 0);
+            emit_u8!(buffer, cursor_ptr, 59);
+            ra_emit_mem_operand!(buffer, cursor_ptr, s1_reg, s2_loc - 64);
+        ] else [
+            s2_reg = s2_loc;
+            if (s2_loc > 15) [
+                ra_load_into_phys!(buffer, cursor_ptr, src2, 10, loc_map, iv);
+                s2_reg = 10;
+            ]
+            emit_rex_w!(buffer, cursor_ptr, s2_reg, s1_reg);
+            emit_u8!(buffer, cursor_ptr, 57);
+            emit_modrm_reg!(buffer, cursor_ptr, s2_reg, s1_reg);
+        ]
+    ]
+    if (is_fused == 0) [
+        // Packed SETcc opcodes: 0: 0x94 (sete), 1: 0x95 (setne), 2: 0x9c (setl), 3: 0x9f (setg)
+        setcc_byte = (2677839252 >> (cmp_op * 8)) & 255;
+        emit_u8!(buffer, cursor_ptr, 15);
+        emit_u8!(buffer, cursor_ptr, setcc_byte);
+        emit_u8!(buffer, cursor_ptr, 192);
+        emit_u8!(buffer, cursor_ptr, 72);
+        emit_u8!(buffer, cursor_ptr, 15);
+        emit_u8!(buffer, cursor_ptr, 182);
+        emit_u8!(buffer, cursor_ptr, 192);
+        ra_store_from_phys!(buffer, cursor_ptr, dst, 0, loc_map);
+    ]
+    ret 0;
+]
+
+// ra_emit_epilogue!
+fn ra_emit_epilogue!(buffer, cursor_ptr, ret_reg, loc_map, iv) [
+    if (ret_reg != 4294967295) [
+        ra_load_into_phys!(buffer, cursor_ptr, ret_reg, 0, loc_map, iv);
+    ]
+    emit_u8!(buffer, cursor_ptr, 72);
+    emit_u8!(buffer, cursor_ptr, 137);
+    emit_u8!(buffer, cursor_ptr, 236);
+    emit_u8!(buffer, cursor_ptr, 93);
+    emit_u8!(buffer, cursor_ptr, 195);
+    ret 0;
+]
+
+fn ra_emit_select!(buffer, cursor_ptr, dst, cond, then_val, else_val, loc_map, fused_cmp_op, iv) [
+    dst_loc = loc_map@[dst];
+    target_phys = dst_loc;
+    if (dst_loc > 15) [
+        target_phys = 11;
+    ]
+
+    ra_load_into_phys!(buffer, cursor_ptr, else_val, target_phys, loc_map, iv);
+
+    if (fused_cmp_op == 255) [
+        cond_phys = loc_map@[cond];
+        if (cond_phys > 15) [
+            ra_load_into_phys!(buffer, cursor_ptr, cond, 10, loc_map, iv);
+            cond_phys = 10;
+        ]
+
+        // TEST rN, rN: cond_phys in both reg+r/m fields — set REX.R and REX.B together
+        emit_rex_w!(buffer, cursor_ptr, cond_phys, cond_phys);
+        emit_u8!(buffer, cursor_ptr, 133);
+        emit_modrm_reg!(buffer, cursor_ptr, cond_phys, cond_phys);
+    ]
+
+    then_phys = loc_map@[then_val];
+    if (then_phys > 15) [
+        ra_load_into_phys!(buffer, cursor_ptr, then_val, 10, loc_map, iv);
+        then_phys = 10;
+    ]
+
+    fused_idx = fused_cmp_op * (fused_cmp_op < 4) + (fused_cmp_op == 255);
+    // Packed CMOVcc opcodes: 0: 0x44 (cmove), 1: 0x45 (cmovne), 2: 0x4c (cmovl), 3: 0x4f (cmovg)
+    cmov_byte = (1330398532 >> (fused_idx * 8)) & 255;
+
+    emit_rex_w!(buffer, cursor_ptr, target_phys, then_phys);
+    emit_u8!(buffer, cursor_ptr, 15);
+    emit_u8!(buffer, cursor_ptr, cmov_byte);
+    emit_modrm_reg!(buffer, cursor_ptr, target_phys, then_phys);
+
+    if ((dst_loc > 63) & (dst_loc != 65535)) [
+        emit_rex_w!(buffer, cursor_ptr, target_phys, 0);
+        emit_u8!(buffer, cursor_ptr, 137);
+        ra_emit_mem_operand!(buffer, cursor_ptr, target_phys, dst_loc - 64);
+    ]
+    ret 0;
+]
+
+fn emit_br!(buffer, cursor_ptr, tgt_idx, fixup_table, fixup_count) [
+    emit_u8!(buffer, cursor_ptr, 233);
+    fc = fixup_count@[0];
+    fixup_table@[(fc * 2)] = cursor_ptr@[0];
+    fixup_table@[(fc * 2 + 1)] = tgt_idx;
+    fixup_count@[0] = fc + 1;
+    emit_u32!(buffer, cursor_ptr, 0);
+    ret 0;
+]
+
+fn emit_jcc_br!(buffer, cursor_ptr, jcc, tgt_idx, fixup_table, fixup_count) [
+    emit_u8!(buffer, cursor_ptr, 15);
+    emit_u8!(buffer, cursor_ptr, jcc);
+    fc = fixup_count@[0];
+    fixup_table@[(fc * 2)] = cursor_ptr@[0];
+    fixup_table@[(fc * 2 + 1)] = tgt_idx;
+    fixup_count@[0] = fc + 1;
+    emit_u32!(buffer, cursor_ptr, 0);
+    ret 0;
+]
+
+fn patch_jumps!(buffer, inst_offsets, fixup_table, total_fixups) [
+    loop (curr_fixup:10000000 = 0 .. total_fixups) [
+        patch_pos = fixup_table@[(curr_fixup * 2)];
+        tgt_idx = fixup_table@[(curr_fixup * 2 + 1)];
+        tgt_pos = inst_offsets@[tgt_idx];
+        disp32 = tgt_pos - (patch_pos + 4);
+        buffer@[patch_pos * 1] = disp32 & 255;
+        buffer@[(patch_pos + 1) * 1] = (disp32 >> 8) & 255;
+        buffer@[(patch_pos + 2) * 1] = (disp32 >> 16) & 255;
+        buffer@[(patch_pos + 3) * 1] = (disp32 >> 24) & 255;
+    ]
+    ret 0;
+]
+
+// spine_param_reg!: Maps parameter index to incoming physical register.
+// Parameters 0..9 use ALLOC_POOL_VAL (rcx, rdx, rbx, rsi, rdi, r8, r9, r13, r14, r15).
+// Parameter 10 maps to rax (0), and parameters 11..13 map to r10..r12 (p - 1).
+fn spine_param_reg!(p) [
+    if (p < 10) [
+        ret (1094571221793 >> (p * 4)) & 15;
+    ]
+    if (p == 10) [
+        ret 0;
+    ]
+    if (p < 14) [
+        ret p - 1;
+    ]
+    ret 65535;
+]
+
+// compile_tape!
+fn compile_tape!(buffer, cursor_ptr, desc, inst_offsets, fixup_table, fixup_count, call_fixups, call_fixup_count) [
+    tape_ptr = desc@[0];
+    tape_len = desc@[1];
+    iv = desc@[3];
+    call_table = desc@[6];
+    loc_map = desc@[11];
+    end_array = desc@[13];
+    skip_until = 0;
+    loop (curr_idx:10000000 = 0 .. tape_len) [
+        inst_offsets@[curr_idx] = cursor_ptr@[0];
+        offset = curr_idx * 4;
+        w0     = tape_ptr@[offset];
+        opcode = w0 & 255;
+        if ((skip_until < (curr_idx + 1)) & (opcode != 0)) [
+            dst      = (w0 >> 16) & 65535;
+            aux      = (w0 >> 8) & 255;
+            w1       = tape_ptr@[(offset + 1)];
+            src1     = w1 & 4294967295;
+            src2     = (w1 >> 32) & 4294967295;
+            w2       = tape_ptr@[(offset + 2)];
+            then_idx = w2 & 4294967295;
+            else_idx = w2 >> 32;
+
+            if (opcode == 1) [
+                dst_loc = loc_map@[dst];
+                c_lo = w2 & 4294967295;
+                c_hi = (w2 >> 32) & 4294967295;
+                is_spilled = 0;
+                target_reg = dst_loc;
+                if (dst_loc > 63) [
+                    target_reg = 0;
+                    is_spilled = 1;
+                ]
+                if ((target_reg > 15) & (target_reg < 48)) [
+                    if ((c_lo == 0) & (c_hi == 0)) [
+                        emit_evex512!(buffer, cursor_ptr, target_reg, target_reg, target_reg, 1, 1, 1, 239);
+                    ] else [
+                        emit_u8!(buffer, cursor_ptr, 73);
+                        emit_u8!(buffer, cursor_ptr, 186);
+                        emit_u32!(buffer, cursor_ptr, c_lo);
+                        emit_u32!(buffer, cursor_ptr, c_hi);
+                        emit_evex512!(buffer, cursor_ptr, target_reg, 10, 0, 2, 1, 1, 124);
+                    ]
+                ] else [
+                    if (c_hi == 0) [
+                        if (target_reg > 7) [
+                            emit_u8!(buffer, cursor_ptr, 65);
+                        ]
+                    ] else [
+                        emit_rex_b!(buffer, cursor_ptr, target_reg);
+                    ]
+                    emit_u8!(buffer, cursor_ptr, 184 + (target_reg & 7));
+                    emit_u32!(buffer, cursor_ptr, c_lo);
+                    if (c_hi != 0) [
+                        emit_u32!(buffer, cursor_ptr, c_hi);
+                    ]
+                    if (is_spilled == 1) [
+                        ra_store_from_phys!(buffer, cursor_ptr, dst, 0, loc_map);
+                    ]
+                ]
+            ]
+
+            if ((opcode == 2) | (opcode == 7)) [
+                dst_loc = loc_map@[dst];
+                reg_phys = dst_loc * (dst_loc < 16);
+
+                base_phys = loc_map@[src1];
+                if ((base_phys > 15) | ((base_phys == 0) & (opcode == 7) & (reg_phys == 0))) [
+                    base_phys = 11;
+                    ra_load_into_phys!(buffer, cursor_ptr, src1, 11, loc_map, iv);
+                ]
+
+                idx_phys = 65535;
+                if (src2 != 4294967295) [
+                    idx_phys = loc_map@[src2];
+                    if ((idx_phys > 15) | ((idx_phys == 0) & (opcode == 7) & (reg_phys == 0))) [
+                        idx_phys = 10;
+                        ra_load_into_phys!(buffer, cursor_ptr, src2, 10, loc_map, iv);
+                    ]
+                ]
+
+                if (((opcode == 2) | (opcode == 7)) & (dst_loc > 15) & (dst_loc < 48)) [
+                    z_idx = dst_loc - 16;
+                    emit_u8!(buffer, cursor_ptr, 98);
+                    b1 = 1 | (128 * ((z_idx & 8) == 0)) | (64 * ((idx_phys & 8) == 0)) | (32 * ((base_phys & 8) == 0)) | (16 * ((z_idx & 16) == 0));
+                    emit_u8!(buffer, cursor_ptr, b1);
+                    emit_u8!(buffer, cursor_ptr, 254);
+                    emit_u8!(buffer, cursor_ptr, 72);
+                    vec_opc = 111 + (16 * (opcode == 7));
+                    emit_u8!(buffer, cursor_ptr, vec_opc);
+                    emit_u8!(buffer, cursor_ptr, 128 + ((z_idx & 7) * 8) + 4);
+                    emit_u8!(buffer, cursor_ptr, 192 + ((idx_phys & 7) * 8) + (base_phys & 7));
+                    emit_u32!(buffer, cursor_ptr, w2);
+                ] else [
+                    if ((opcode == 7) & (reg_phys == 0)) [
+                        ra_load_into_phys!(buffer, cursor_ptr, dst, 0, loc_map, iv);
+                    ]
+
+                    rex_w = 8;
+                    if ((aux == 1) & (opcode == 7)) [
+                        rex_w = 0;
+                    ]
+                    rex_r = 4 * (reg_phys > 7);
+                    rex_b = 1 * (base_phys > 7);
+                    rex_x = 2 * ((idx_phys != 65535) & (idx_phys > 7));
+
+                    rex_byte = 64 + rex_w + rex_r + rex_x + rex_b;
+                    if ((rex_byte != 64) | (aux == 1)) [
+                        emit_u8!(buffer, cursor_ptr, rex_byte);
+                    ]
+
+                    if (opcode == 2) [
+                        if (aux == 1) [
+                            emit_u8!(buffer, cursor_ptr, 15);
+                            emit_u8!(buffer, cursor_ptr, 182);
+                        ] else [
+                            emit_u8!(buffer, cursor_ptr, 139);
+                        ]
+                    ] else [
+                        op = 137;
+                        if (aux == 1) [
+                            op = 136;
+                        ]
+                        emit_u8!(buffer, cursor_ptr, op);
+                    ]
+
+                    reg_field = (reg_phys & 7) * 8;
+                    if (idx_phys == 65535) [
+                        base_low = base_phys & 7;
+                        if (base_low == 4) [
+                            emit_u8!(buffer, cursor_ptr, 128 + reg_field + 4);
+                            emit_u8!(buffer, cursor_ptr, 36);
+                        ] else [
+                            emit_u8!(buffer, cursor_ptr, 128 + reg_field + base_low);
+                        ]
+                    ] else [
+                        emit_u8!(buffer, cursor_ptr, 128 + reg_field + 4);
+                        sib_s = 3;
+                        if ((aux > 0) & (aux < 8)) [
+                            sib_s = aux >> 1;
+                        ]
+                        sib_byte = (sib_s * 64) + ((idx_phys & 7) * 8) + (base_phys & 7);
+                        emit_u8!(buffer, cursor_ptr, sib_byte);
+                    ]
+                    emit_u32!(buffer, cursor_ptr, w2);
+
+                    if ((opcode == 2) & (reg_phys == 0)) [
+                        ra_store_from_phys!(buffer, cursor_ptr, dst, 0, loc_map);
+                    ]
+                ]
+            ]
+
+            if (opcode == 3) [
+                word_idx = w2 * 3;
+                func_ptr = call_table@[word_idx];
+                argc = call_table@[(word_idx + 1)] & 4294967295;
+                args_ptr = call_table@[(word_idx + 2)];
+                if (argc == 1) [
+                    ra_load_into_phys!(buffer, cursor_ptr, args_ptr@[0], spine_param_reg!(0), loc_map, iv);
+                ]
+                if (argc > 1) [
+                    loop (arg_idx:14 = 0 .. argc) [
+                        if (arg_idx < 14) [
+                            ra_load_into_phys!(buffer, cursor_ptr, args_ptr@[arg_idx], 0, loc_map, iv);
+                            emit_u8!(buffer, cursor_ptr, 80);
+                        ]
+                    ]
+                    loop (rev_idx:14 = 0 .. argc) [
+                        arg_idx = (argc - 1) - rev_idx;
+                        if (arg_idx < 14) [
+                            phys = spine_param_reg!(arg_idx);
+                            if (phys > 7) [
+                                emit_u8!(buffer, cursor_ptr, 65);
+                                phys = phys - 8;
+                            ]
+                            emit_u8!(buffer, cursor_ptr, 88 + phys);
+                        ]
+                    ]
+                ]
+
+                emit_u8!(buffer, cursor_ptr, 232);
+                if (call_fixups != 0) [
+                    fc = call_fixup_count@[0];
+                    call_fixups@[(fc * 2)] = cursor_ptr@[0];
+                    call_fixups@[(fc * 2 + 1)] = func_ptr;
+                    call_fixup_count@[0] = fc + 1;
+                    emit_u32!(buffer, cursor_ptr, 0);
+                ] else [
+                    rel32 = (func_ptr & 4294967295) - (cursor_ptr@[0] + 4);
+                    emit_u32!(buffer, cursor_ptr, rel32);
+                ]
+
+                ra_store_from_phys!(buffer, cursor_ptr, dst, 0, loc_map);
+            ]
+
+            if (opcode == 4) [
+                fused = 0;
+                if (aux == 4) [
+                    // Bit-test fusion: AND -> [CONST 0] -> CMP(0) -> BRIF
+                    cmp_idx = 65535;
+                    if ((curr_idx + 2) < tape_len) [
+                        if ((tape_ptr@[((curr_idx + 1) * 4)] & 255) == 5) [
+                            cmp_idx = curr_idx + 1;
+                        ]
+                    ]
+                    if ((cmp_idx == 65535) & ((curr_idx + 3) < tape_len)) [
+                        k_opc = tape_ptr@[((curr_idx + 1) * 4)] & 255;
+                        if ((k_opc < 2) & ((tape_ptr@[((curr_idx + 2) * 4)] & 255) == 5)) [
+                            cmp_idx = curr_idx + 2;
+                        ]
+                    ]
+                    if (cmp_idx != 65535) [
+                        brif_idx = cmp_idx + 1;
+                        c_off = cmp_idx * 4;
+                        c_w0 = tape_ptr@[c_off];
+                        c_dst = (c_w0 >> 16) & 65535;
+                        c_w1 = tape_ptr@[(c_off + 1)];
+                        c_src1 = c_w1 & 4294967295;
+
+                        b_off = brif_idx * 4;
+                        b_w0 = tape_ptr@[b_off];
+                        b_w1 = tape_ptr@[(b_off + 1)];
+
+                        if (((b_w0 & 255) == 11) & ((b_w1 & 4294967295) == c_dst) & (((c_w0 >> 8) & 255) < 2) & (c_src1 == dst)) [
+                            if (((c_w0 >> 56) & 2) != 0) [
+                                if (tape_ptr@[(c_off + 2)] == 0) [
+                                    and_var = 65535;
+                                    and_mask = 0;
+                                    if (((w0 >> 56) & 2) != 0) [
+                                        and_var = src1;
+                                        and_mask = w2;
+                                    ]
+                                    if (and_var != 65535) [
+                                        if ((loc_map@[and_var] < 16) & ((end_array@[dst] & 4294967295) < (brif_idx + 1))) [
+                                            fused = 1;
+                                            var_phys = loc_map@[and_var];
+                                            is_byte_mask = (and_mask > 0) & (and_mask < 256) & (var_phys < 4);
+                                            if (is_byte_mask == 1) [
+                                                emit_u8!(buffer, cursor_ptr, 246);
+                                                emit_u8!(buffer, cursor_ptr, 192 + var_phys);
+                                                emit_u8!(buffer, cursor_ptr, and_mask & 255);
+                                            ] else [
+                                                emit_rex_b!(buffer, cursor_ptr, var_phys);
+                                                emit_u8!(buffer, cursor_ptr, 247);
+                                                emit_u8!(buffer, cursor_ptr, 192 + (var_phys & 7));
+                                                emit_u32!(buffer, cursor_ptr, and_mask);
+                                            ]
+
+                                            cmp_op = (c_w0 >> 8) & 255;
+                                            dir_jcc = 133 - (cmp_op == 0);
+
+                                            b_w2 = tape_ptr@[(b_off + 2)];
+                                            b_then = b_w2 & 4294967295;
+                                            b_else = b_w2 >> 32;
+
+                                            if (b_then == (brif_idx + 1)) [
+                                                emit_jcc_br!(buffer, cursor_ptr, dir_jcc ^ 1, b_else, fixup_table, fixup_count);
+                                            ] else [
+                                                emit_jcc_br!(buffer, cursor_ptr, dir_jcc, b_then, fixup_table, fixup_count);
+                                                if (b_else != (brif_idx + 1)) [
+                                                    emit_br!(buffer, cursor_ptr, b_else, fixup_table, fixup_count);
+                                                ]
+                                            ]
+                                            skip_until = brif_idx + 1;
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+                if ((aux == 0) & (fused == 0)) [
+                    // 3-term SIB LEA fusion: ADD t1 = r1 + r2; [CONST]; ADD t2 = t1 + imm; ASSIGN r1 = t2
+                    add2_idx = 65535;
+                    if ((curr_idx + 2) < tape_len) [
+                        w0_n1 = tape_ptr@[((curr_idx + 1) * 4)];
+                        if ((w0_n1 & 65535) == 4) [
+                            add2_idx = curr_idx + 1;
+                        ]
+                    ]
+                    if ((add2_idx == 65535) & ((curr_idx + 3) < tape_len)) [
+                        k_opc = tape_ptr@[((curr_idx + 1) * 4)] & 255;
+                        if (k_opc < 2) [
+                            w0_n2 = tape_ptr@[((curr_idx + 2) * 4)];
+                            if ((w0_n2 & 65535) == 4) [
+                                add2_idx = curr_idx + 2;
+                            ]
+                        ]
+                    ]
+                    if (add2_idx != 65535) [
+                        a2_off = add2_idx * 4;
+                        a2_w0 = tape_ptr@[a2_off];
+                        t2 = (a2_w0 >> 16) & 65535;
+                        a2_w1 = tape_ptr@[(a2_off + 1)];
+                        a2_s1 = a2_w1 & 4294967295;
+                        if (a2_s1 == dst) [
+                            if (((a2_w0 >> 56) & 2) != 0) [
+                                asn_idx = add2_idx + 1;
+                                asn_off = asn_idx * 4;
+                                asn_w0 = tape_ptr@[asn_off];
+                                asn_w1 = tape_ptr@[(asn_off + 1)];
+                                if (((asn_w0 & 255) == 9) & ((asn_w1 & 4294967295) == t2)) [
+                                    final_dst = (asn_w0 >> 16) & 65535;
+                                    if ((final_dst == src1) | (final_dst == src2)) [
+                                        if ((loc_map@[final_dst] < 16) & (loc_map@[src1] < 16) & (loc_map@[src2] < 16) & ((end_array@[dst] & 4294967295) < (add2_idx + 1))) [
+                                            fused = 1;
+                                            base_r = src1;
+                                            idx_r = src2;
+                                            if (final_dst == src2) [
+                                                base_r = src2;
+                                                idx_r = src1;
+                                            ]
+                                            target_phys = loc_map@[final_dst];
+                                            base_phys = loc_map@[base_r];
+                                            idx_phys = loc_map@[idx_r];
+                                            imm = tape_ptr@[(a2_off + 2)];
+                                            emit_sib_lea!(buffer, cursor_ptr, target_phys, base_phys, idx_phys, 0, imm);
+                                            skip_until = asn_idx + 1;
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+                if (fused == 0) [
+                    ra_emit_bin!(buffer, cursor_ptr, dst, src1, src2, aux, loc_map, w0, w2, iv);
+                ]
+            ]
+
+            if (opcode == 5) [
+                is_fused = 0;
+                if ((curr_idx + 1) < tape_len) [
+                    nxt_off = (curr_idx + 1) * 4;
+                    nxt_w0 = tape_ptr@[nxt_off];
+                    nxt_opc = nxt_w0 & 255;
+                    nxt_w1 = tape_ptr@[(nxt_off + 1)];
+                    if ((nxt_w1 & 4294967295) == dst) [
+                        if ((nxt_opc == 11) | ((nxt_opc == 6) & ((end_array@[dst] & 4294967295) < (curr_idx + 2)))) [
+                            is_fused = 1;
+                        ]
+                    ]
+                ]
+                ra_emit_cmp!(buffer, cursor_ptr, dst, src1, src2, aux, loc_map, w0, w2, is_fused, iv);
+            ]
+
+            if (opcode == 6) [
+                fused_cmp_op = 255;
+                if (curr_idx > 0) [
+                    prev_w0 = tape_ptr@[((curr_idx - 1) * 4)];
+                    if (((prev_w0 & 255) == 5) & (((prev_w0 >> 16) & 65535) == src1) & ((end_array@[src1] & 4294967295) < (curr_idx + 1))) [
+                        fused_cmp_op = (prev_w0 >> 8) & 255;
+                    ]
+                ]
+                ra_emit_select!(buffer, cursor_ptr, dst, src1, src2, w2, loc_map, fused_cmp_op, iv);
+            ]
+
+            if (opcode == 9) [
+                dst_loc = loc_map@[dst];
+                load_target = dst_loc;
+                if (dst_loc > 47) [
+                    load_target = 10;
+                ]
+                src1_phys = loc_map@[src1];
+                if (src1_phys > 47) [
+                    ra_load_into_phys!(buffer, cursor_ptr, src1, load_target, loc_map, iv);
+                    src1_phys = load_target;
+                ]
+                ra_store_from_phys!(buffer, cursor_ptr, dst, src1_phys, loc_map);
+            ]
+
+            if (opcode == 12) [
+                dst_loc = loc_map@[dst];
+                target_phys = dst_loc;
+                if (dst_loc > 15) [
+                    target_phys = 10;
+                ]
+                ra_load_into_phys!(buffer, cursor_ptr, src1, target_phys, loc_map, iv);
+                emit_rex_b!(buffer, cursor_ptr, target_phys);
+                emit_u8!(buffer, cursor_ptr, 247);
+                emit_modrm_reg!(buffer, cursor_ptr, 3, target_phys);
+                ra_store_from_phys!(buffer, cursor_ptr, dst, target_phys, loc_map);
+            ]
+
+            if (opcode == 8) [
+                ra_emit_epilogue!(buffer, cursor_ptr, src1, loc_map, iv);
+            ]
+
+            if (opcode == 10) [
+                is_dead = 0;
+                if (curr_idx > 0) [
+                    is_dead = (tape_ptr@[((curr_idx - 1) * 4)] & 255) == 8;
+                ]
+                if (is_dead == 0) [
+                    emit_br!(buffer, cursor_ptr, w2, fixup_table, fixup_count);
+                ]
+            ]
+
+            if (opcode == 11) [
+                dir_jcc = 133;
+                if (curr_idx > 0) [
+                    prev_w0 = tape_ptr@[((curr_idx - 1) * 4)];
+                    if (((prev_w0 & 255) == 5) & (((prev_w0 >> 16) & 65535) == src1)) [
+                        cmp_op = (prev_w0 >> 8) & 255;
+                        dir_jcc = 132 + (cmp_op == 1) + ((cmp_op == 2) * 8) + ((cmp_op == 3) * 11);
+                    ] else [
+                        src1_phys = loc_map@[src1];
+                        if (src1_phys > 15) [
+                            ra_load_into_phys!(buffer, cursor_ptr, src1, 0, loc_map, iv);
+                            src1_phys = 0;
+                        ]
+                        emit_rex_w!(buffer, cursor_ptr, src1_phys, src1_phys);
+                        emit_u8!(buffer, cursor_ptr, 133);
+                        emit_modrm_reg!(buffer, cursor_ptr, src1_phys, src1_phys);
+                    ]
+                ]
+
+                if (then_idx == (curr_idx + 1)) [
+                    emit_jcc_br!(buffer, cursor_ptr, dir_jcc ^ 1, else_idx, fixup_table, fixup_count);
+                ] else [
+                    emit_jcc_br!(buffer, cursor_ptr, dir_jcc, then_idx, fixup_table, fixup_count);
+                    if (else_idx != (curr_idx + 1)) [
+                        emit_br!(buffer, cursor_ptr, else_idx, fixup_table, fixup_count);
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+    ret 0;
+]
+
+// compile_function_linked!
+fn compile_function_linked!(buffer, cursor_ptr, desc, arena, call_fixups, call_fixup_count) [
+    // Save arena bump pointer before per-function scratch allocations
+    saved_arena_ptr = arena@[1];
+
+    tape_ptr   = desc@[0];
+    tape_len   = desc@[1];
+    param_cnt  = desc@[5];
+    desc@[10] = cursor_ptr@[0];
+
+    allocate_registers!(arena, desc);
+    loc_map    = desc@[11];
+    num_spills = desc@[14];
+    emit_prologue!(buffer, cursor_ptr, num_spills);
+
+    loop (param_idx:14 = 0 .. param_cnt) [
+        loc = loc_map@[param_idx];
+        if ((loc > 63) & (loc != 65535)) [
+            incoming_reg = spine_param_reg!(param_idx);
+            emit_rex_w!(buffer, cursor_ptr, incoming_reg, 0);
+            emit_u8!(buffer, cursor_ptr, 137);
+            ra_emit_mem_operand!(buffer, cursor_ptr, incoming_reg, loc - 64);
+        ]
+    ]
+
+    if (desc@[9] != 0) [
+        emit_evex_init_ramp30!(buffer, cursor_ptr);
+    ]
+
+    inst_offsets = arena_alloc_words!(arena, tape_len + 1);
+    fixup_table  = arena_alloc_words!(arena, tape_len * 4);
+    fixup_count  = arena_alloc_words!(arena, 1);
+    fixup_count@[0] = 0;
+
+    _ = compile_tape!(buffer, cursor_ptr, desc, inst_offsets, fixup_table, fixup_count, call_fixups, call_fixup_count);
+
+    inst_offsets@[tape_len] = cursor_ptr@[0];
+    patch_jumps!(buffer, inst_offsets, fixup_table, fixup_count@[0]);
+
+    // Restore arena bump pointer
+    arena@[1] = saved_arena_ptr;
+    ret 0;
+]
+
+fn patch_call_fixups!(buffer, func_by_sym, call_fixups, total_fixups) [
+    loop (curr_fixup:10000000 = 0 .. total_fixups) [
+        patch_pos = call_fixups@[(curr_fixup * 2)];
+        sym_id = call_fixups@[(curr_fixup * 2 + 1)];
+        func_desc = func_by_sym@[sym_id];
+        if (func_desc != 0) [
+            entry_off = func_desc@[10];
+            rel32 = entry_off - (patch_pos + 4);
+            buffer@[patch_pos * 1]       = rel32 & 255;
+            buffer@[(patch_pos + 1) * 1] = (rel32 >> 8) & 255;
+            buffer@[(patch_pos + 2) * 1] = (rel32 >> 16) & 255;
+            buffer@[(patch_pos + 3) * 1] = (rel32 >> 24) & 255;
+        ]
+    ]
+    ret 0;
+]
+
+fn compile_program!(buffer, cursor_ptr, prog_desc, arena) [
+    func_table = prog_desc@[0];
+    func_count = prog_desc@[1];
+    call_count = prog_desc@[7];
+    func_by_sym = prog_desc@[8];
+    call_fixups = arena_alloc_words!(arena, call_count * 2);
+    call_fixup_count = arena_alloc_words!(arena, 1);
+    call_fixup_count@[0] = 0;
+
+    loop (curr_idx:1000000 = 0 .. func_count) [
+        func_desc = func_table@[curr_idx];
+        compile_function_linked!(buffer, cursor_ptr, func_desc, arena, call_fixups, call_fixup_count);
+    ]
+
+    ret patch_call_fixups!(buffer, func_by_sym, call_fixups, call_fixup_count@[0]);
+]
+
+fn emit_safe_payload!(code_len, main_offset, arena) [
+    // 32-Byte Fixed .safe Header (SINC Aligned Format Executable)
+    // Magic: 0x53414645 ("SAFE"), Version: 1, 32-byte Natural Hardware Alignment
+    safe_header = arena_alloc_words!(arena, 4);
+    safe_header@[0] = 1396786245 | (1 << 32); // Magic "SAFE" (0x53414645), Version 1
+    safe_header@[1] = code_len;              // Code Payload Size in Bytes
+    safe_header@[2] = main_offset;           // Entrypoint Offset
+    safe_header@[3] = 32;                    // Alignment Boundary (32 Bytes)
+    ret safe_header;
+]

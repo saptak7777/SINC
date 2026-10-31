@@ -1,0 +1,62 @@
+// EXPECT: 1
+// REQUIRE_INSN: imul
+// Dynamic operator precedence matrix: verifies precedence and associativity
+// across non-constant, runtime operands to guarantee codegen correctness.
+
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn test_precedence() [
+    a = helper(2);
+    b = helper(3);
+    c = helper(4);
+    d = helper(5);
+
+    // 1. Multiplication precedes Addition: 2 + 3 * 4 = 14
+    p1 = a + b * c;
+    if (p1 != 14) [ ret 0; ]
+
+    // 2. Parentheses override precedence: (2 + 3) * 4 = 20
+    p2 = (a + b) * c;
+    if (p2 != 20) [ ret 0; ]
+
+    // 3. Division precedes Subtraction: 20 - 12 / 3 = 16
+    p3 = helper(20) - helper(12) / b;
+    if (p3 != 16) [ ret 0; ]
+
+    // 4. Subtraction is left-associative: 20 - 5 - 3 = 12
+    p4 = helper(20) - d - b;
+    if (p4 != 12) [ ret 0; ]
+
+    // 5. Addition precedes Shift: 1 << (2 + 1) = 8
+    p5 = helper(1) << a + helper(1);
+    if (p5 != 8) [ ret 0; ]
+
+    // 6. Shift precedes Bitwise AND: 6 & (1 << 2) = 4
+    p6 = helper(6) & helper(1) << a;
+    if (p6 != 4) [ ret 0; ]
+
+    // 7. Bitwise AND precedes Bitwise OR: 2 | (1 & 0) = 2
+    p7 = a | helper(1) & helper(0);
+    if (p7 != 2) [ ret 0; ]
+
+    // 8. Chained addition and multiplication: 2 * 3 + 4 * 5 = 26
+    p8 = a * b + c * d;
+    if (p8 != 26) [ ret 0; ]
+
+    // 9. Nested complex expression
+    // (2 + 3 * 4) - (5 * 2 - 4) = 14 - 6 = 8
+    p9 = (a + b * c) - (d * a - c);
+    if (p9 != 8) [ ret 0; ]
+
+    ret 1;
+]
+
+fn main() [
+    ret test_precedence();
+]

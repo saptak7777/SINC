@@ -1,0 +1,6 @@
+// COMPILE_ERROR: 1
+// Test: Constant division by zero compile-time rejection
+fn main() [
+    x = 10 / 0;
+    ret x;
+]

@@ -1,0 +1,11 @@
+// EXPECT: 142
+// Test: Scalar multiply-add sequence (a * b + c)
+fn compute_madd(a, b, c) [
+    p = a * b;
+    ret p + c;
+]
+
+fn main() [
+    res = compute_madd(12, 10, 22);
+    ret res;
+]

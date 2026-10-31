@@ -1,0 +1,40 @@
+// ==========================================
+// steel/sys/stream.sinc
+// S.T.E.E.L. Linear Byte Stream Reader/Writer
+// ==========================================
+
+const STREAM_PTR    = 0;
+const STREAM_LEN    = 1;
+const STREAM_CURSOR = 2;
+
+fn stream_new!(arena, ptr, len) [
+    s = arena_alloc_words!(arena, 3);
+    s.STREAM_PTR    = ptr;
+    s.STREAM_LEN    = len;
+    s.STREAM_CURSOR = 0;
+    ret s;
+]
+
+fn stream_read_byte!(stream) [
+    cursor = stream.STREAM_CURSOR;
+    if (cursor == stream.STREAM_LEN) [ ret -1; ]
+    ptr = stream.STREAM_PTR;
+    ch = ptr@[cursor * 1];
+    stream.STREAM_CURSOR = cursor + 1;
+    ret ch;
+]
+
+fn stream_peek_byte(stream, offset) [
+    pos = stream.STREAM_CURSOR + offset;
+    if (!(pos < stream.STREAM_LEN)) [ ret -1; ]
+    ptr = stream.STREAM_PTR;
+    ret ptr@[pos * 1];
+]
+
+fn stream_write_byte!(stream, byte_val) [
+    cursor = stream.STREAM_CURSOR;
+    ptr = stream.STREAM_PTR;
+    ptr@[cursor * 1] = byte_val & 255;
+    stream.STREAM_CURSOR = cursor + 1;
+    ret 0;
+]

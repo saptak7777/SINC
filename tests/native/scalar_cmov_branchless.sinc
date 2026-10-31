@@ -1,0 +1,23 @@
+// EXPECT: 88
+// REQUIRE_INSN: cmov
+fn select_max(a, b) [
+    res = b;
+    if (a > b) [
+        res = a;
+    ]
+    ret res;
+]
+
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn main() [
+    a = helper(45);
+    b = helper(88);
+    ret select_max(a, b);
+]

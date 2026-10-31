@@ -1,0 +1,9 @@
+// EXPECT: 21
+fn main() [
+    sum = 0;
+    loop (i:7 = 0 .. 7) [
+        sum = sum + 1;
+        sum = sum + 2;
+    ]
+    ret sum;
+]

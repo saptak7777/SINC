@@ -1,0 +1,8 @@
+fn main() [
+    val = -100;
+    shifted = val >> 2;
+    if (shifted == -25) [
+        ret 42;
+    ]
+    ret 99;
+]

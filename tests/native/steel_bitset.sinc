@@ -1,0 +1,114 @@
+// EXPECT: 147
+// Test: STEEL bitset library operations
+
+extern fn get_argv!();
+extern fn getdents!();
+extern fn exit!();
+extern fn close!();
+extern fn write!();
+extern fn read!();
+extern fn open!();
+extern fn mmap!();
+
+fn bitset_words_needed(bit_count) [
+    ret (bit_count + 63) >> 6;
+]
+
+fn bitset_alloc!(arena, bit_count) [
+    num_words = (bit_count + 63) >> 6;
+    words = arena_alloc_words!(arena, num_words);
+    loop (i:1000000 = 0 .. num_words) [
+        words@[i] = 0;
+    ]
+    ret words;
+]
+
+fn bitset_set!(words, bit_idx) [
+    w_idx = bit_idx >> 6;
+    b_idx = bit_idx & 63;
+    words@[w_idx] = words@[w_idx] | (1 << b_idx);
+    ret 0;
+]
+
+fn bitset_clear!(words, bit_idx) [
+    w_idx = bit_idx >> 6;
+    b_idx = bit_idx & 63;
+    mask = -1 ^ (1 << b_idx);
+    words@[w_idx] = words@[w_idx] & mask;
+    ret 0;
+]
+
+fn bitset_test(words, bit_idx) [
+    w_idx = bit_idx >> 6;
+    b_idx = bit_idx & 63;
+    ret (words@[w_idx] >> b_idx) & 1;
+]
+
+fn bitset_union!(dst_words, src_words, num_words) [
+    loop (i:1000000 = 0 .. num_words) [
+        dst_words@[i] = dst_words@[i] | src_words@[i];
+    ]
+    ret 0;
+]
+
+fn bitset_intersect!(dst_words, src_words, num_words) [
+    loop (i:1000000 = 0 .. num_words) [
+        dst_words@[i] = dst_words@[i] & src_words@[i];
+    ]
+    ret 0;
+]
+
+fn bitset_copy_words!(dst, src, n) [
+    loop (i:1000 = 0 .. n) [
+        dst@[i] = src@[i];
+    ]
+    ret 0;
+]
+
+fn arena_init!(mem~, size) [
+    arena = mem~;
+    arena@[0] = arena + 24;
+    arena@[1] = arena + 24;
+    arena@[2] = arena + size;
+    ret arena;
+]
+
+fn arena_alloc!(arena, bytes) [
+    aligned_bytes = ((bytes + 7) >> 3) << 3;
+    current_next = arena@[1];
+    limit = arena@[2];
+    if (current_next + aligned_bytes > limit) [ ret 0; ]
+    arena@[1] = current_next + aligned_bytes;
+    ret current_next;
+]
+
+fn arena_alloc_words!(arena, count) [
+    ret arena_alloc!(arena, count * 8);
+]
+
+fn main!() [
+    mem~ = mmap!(0, 65536, 3, 34, -1, 0);
+    arena = arena_init!(mem~, 65536);
+    
+    bs1 = bitset_alloc!(arena, 128);
+    bitset_set!(bs1, 5);
+    bitset_set!(bs1, 63);
+    bitset_set!(bs1, 70);
+    
+    bs2 = bitset_alloc!(arena, 128);
+    bitset_set!(bs2, 5);
+    bitset_set!(bs2, 80);
+    
+    // Test intersection (should only have bit 5)
+    bs_and = bitset_alloc!(arena, 128);
+    bitset_copy_words!(bs_and, bs1, 2);
+    bitset_intersect!(bs_and, bs2, 2);
+    
+    val = 0;
+    if (bitset_test(bs_and, 5) == 1) [ val = val + 100; ]
+    if (bitset_test(bs_and, 63) == 0) [ val = val + 20; ]
+    if (bitset_test(bs_and, 70) == 0) [ val = val + 15; ]
+    if (bitset_test(bs_and, 80) == 0) [ val = val + 12; ]
+    
+    ret val;
+]

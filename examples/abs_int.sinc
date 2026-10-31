@@ -1,0 +1,5 @@
+fn main() [
+    int_x = -10;
+    int_y = abs(int_x);
+    ret int_y;
+]

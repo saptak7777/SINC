@@ -1,0 +1,11 @@
+// EXPECT: 40
+// Test: Phase 6 — Constant trip-count loop unrolling on inner loop
+fn main() [
+    sum = 0;
+    loop (outer:10 = 0 .. 10) [
+        loop (k:4 = 0 .. 4) [
+            sum = sum + 1;
+        ]
+    ]
+    ret sum & 255;
+]

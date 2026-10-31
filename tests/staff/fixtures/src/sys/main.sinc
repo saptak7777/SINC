@@ -1,0 +1,5 @@
+// tests/staff/fixtures/src/sys/main.sinc
+fn main!(argc, argv_ptr) [
+    res = add_with_base(42);
+    ret res;
+]

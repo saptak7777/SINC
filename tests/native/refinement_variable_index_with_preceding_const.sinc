@@ -1,0 +1,11 @@
+// EXPECT: 142
+// Test: Array indexing with variable operand preceded by constant addition must not false-positive
+extern fn mmap!();
+
+fn main!() [
+    buf:64 = mmap!(0, 4096, 3, 34, -1, 0);
+    i:8 = 3;
+    buf@[3] = 42;
+    val = 100 + buf@[i];
+    ret val;
+]

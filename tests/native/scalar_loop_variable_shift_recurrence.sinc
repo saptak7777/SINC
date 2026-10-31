@@ -1,0 +1,12 @@
+// EXPECT: 11
+// Test: Loop with variable shift recurrence stays scalar
+fn main() [
+    sum = 0;
+    loop (idx:32 = 0 .. 32) [
+        shift_amt = (idx & 7) + 1;
+        t1 = sum << shift_amt;
+        t2 = t1 >> shift_amt;
+        sum = sum + ((t2 >> 2) & 63) + 1;
+    ]
+    ret (sum & 255);
+]

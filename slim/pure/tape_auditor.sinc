@@ -1,0 +1,1335 @@
+// ==========================================
+// slim/pure/tape_auditor.sinc
+// S.L.I.M. Pass 2 Tape Auditor
+// Unified Statement, Scope, & Constraint Auditor
+// Pure text algorithms: zero '!', zero syscalls
+// ==========================================
+
+const MAX_AUDIT_PARAMS = 16;
+const MAX_AUDIT_VARS   = 128;
+const VAR_REC_WORDS    = 4; // [ptr, len, line, is_read]
+const VAR_REC_PTR      = 0;
+const VAR_REC_LEN      = 1;
+const VAR_REC_LINE     = 2;
+const VAR_REC_READ     = 3;
+
+// ---------------------------------------------------------------------------
+// 1. Statement-level Auditor
+// Checks [TAG: LAZY], [TAG: FOSSIL], [TAG: RAWDATA], [TAG: SPLINTER]
+// and records call sites into func_table
+// ---------------------------------------------------------------------------
+fn slim_audit_statements!(arena, src_tape, tape_len, diag_buf, sym_reg) [
+    violations = 0;
+    file_table = diag_buf@[450];
+    file_count = diag_buf@[451];
+    curr_file  = 0;
+    curr_line  = 1;
+
+    func_table = sym_reg@[0];
+    func_count = sym_reg@[1];
+
+    op_count         = 0;
+    call_nesting     = 0;
+    max_call_nesting = 0;
+    last_zero_ptr    = 0;
+    last_zero_len    = 0;
+    last_zero_line   = 0;
+
+    i = 0;
+    loop (step:10000000 = 0 .. tape_len) [
+        if (i < tape_len) [
+            ch = src_tape@[i * 1];
+            if (ch == 10) [
+                curr_line = curr_line + 1;
+            ]
+
+            if ((file_count > 1) & (file_table != 0)) [
+                f_end_idx = (curr_file * 4) + 3;
+                f_end = file_table@[f_end_idx];
+                if ((!(i < f_end)) & ((curr_file + 1) < file_count)) [
+                    curr_file = curr_file + 1;
+                    curr_line = 1;
+                ]
+            ]
+
+            is_comment = 0;
+            // Skip comments
+            if ((ch == 47) & ((i + 1) < tape_len)) [
+                if (src_tape@[(i + 1) * 1] == 47) [
+                    is_comment = 1;
+                    sc_active = 1;
+                    loop (sc:1000000 = 0 .. tape_len) [
+                        if (sc_active == 1) [
+                            if (i < tape_len) [
+                                if (src_tape@[i * 1] == 10) [
+                                    curr_line = curr_line + 1;
+                                    sc_active = 0;
+                                ] else [
+                                    i = i + 1;
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+
+            if (is_comment == 1) [
+                i = i + 1;
+            ] else [
+                // Check operators for [TAG: LAZY]
+                is_op = 0;
+                if ((ch == 43) | (ch == 42) | (ch == 37)) [
+                    is_op = 1;
+                ]
+                if (ch == 45) [
+                    if ((i + 1) < tape_len) [
+                        if (src_tape@[(i + 1) * 1] != 62) [
+                            is_op = 1;
+                        ]
+                    ] else [
+                        is_op = 1;
+                    ]
+                ]
+                if (ch == 47) [
+                    if ((i + 1) < tape_len) [
+                        if (src_tape@[(i + 1) * 1] != 47) [
+                            is_op = 1;
+                        ]
+                    ] else [
+                        is_op = 1;
+                    ]
+                ]
+                if (ch == 60) [
+                    if ((i + 1) < tape_len) [
+                        next_c = src_tape@[(i + 1) * 1];
+                        if (next_c == 60) [
+                            i = i + 1;
+                        ] else [
+                            if (next_c != 61) [
+                                is_op = 1;
+                            ]
+                        ]
+                    ] else [
+                        is_op = 1;
+                    ]
+                ]
+                if (ch == 62) [
+                    if ((i + 1) < tape_len) [
+                        next_c = src_tape@[(i + 1) * 1];
+                        if (next_c == 62) [
+                            i = i + 1;
+                        ] else [
+                            if (next_c != 61) [
+                                is_op = 1;
+                            ]
+                        ]
+                    ] else [
+                        is_op = 1;
+                    ]
+                ]
+
+                if (is_op == 1) [
+                    op_count = op_count + 1;
+                ]
+
+                // Track call nesting with '(' and ')'
+                if (ch == 40) [
+                    call_nesting = call_nesting + 1;
+                    if (call_nesting > max_call_nesting) [
+                        max_call_nesting = call_nesting;
+                    ]
+                ]
+                if (ch == 41) [
+                    if (call_nesting > 0) [
+                        call_nesting = call_nesting - 1;
+                    ]
+                ]
+
+                // Semicolon ';' or block open '[' ends expression
+                if ((ch == 59) | (ch == 91)) [
+                    if ((op_count > 4) | (max_call_nesting > 2)) [
+                        diag_buf@[452] = curr_file;
+                        diag_emit_tag!(diag_buf, TAG_LAZY, curr_line, 0, 0);
+                        violations = violations + 1;
+                    ]
+                    op_count = 0;
+                    call_nesting = 0;
+                    max_call_nesting = 0;
+                ]
+                if (ch == 93) [
+                    op_count = 0;
+                    call_nesting = 0;
+                    max_call_nesting = 0;
+                ]
+
+            // Check for [TAG: RAWDATA]: '==' or '!=' followed by literal 65535, 4294967295, -1, or > 255
+            is_cmp = 0;
+            if (((ch == 61) | (ch == 33)) & ((i + 1) < tape_len)) [
+                if (src_tape@[(i + 1) * 1] == 61) [
+                    is_cmp = 1;
+                ]
+            ]
+
+            if (is_cmp == 1) [
+                rpos = i + 2;
+                rsp = 1;
+                loop (rs:8 = 0 .. 8) [
+                    if (rsp == 1) [
+                        if (rpos < tape_len) [
+                            if (src_tape@[rpos * 1] == 32) [
+                                rpos = rpos + 1;
+                            ] else [
+                                rsp = 0;
+                            ]
+                        ]
+                    ]
+                ]
+
+                num_val = 0;
+                is_neg  = 0;
+                if ((rpos < tape_len) & (src_tape@[rpos * 1] == 45)) [
+                    is_neg = 1;
+                    rpos = rpos + 1;
+                ]
+
+                num_len = 0;
+                nd = 1;
+                loop (nl:12 = 0 .. 12) [
+                    if (nd == 1) [
+                        if ((rpos + nl) < tape_len) [
+                            dc = src_tape@[(rpos + nl) * 1];
+                            if ((!(dc < 48)) & (dc < 58)) [
+                                num_val = (num_val * 10) + (dc - 48);
+                                num_len = num_len + 1;
+                            ] else [
+                                nd = 0;
+                            ]
+                        ]
+                    ]
+                ]
+
+                is_raw = 0;
+                if (num_len > 0) [
+                    if (num_val == 65535) [
+                        is_raw = 1;
+                    ]
+                    if (num_val == 4294967295) [
+                        is_raw = 1;
+                    ]
+                    if ((is_neg == 1) & (num_val == 1)) [
+                        is_raw = 1;
+                    ]
+                    if ((is_neg == 0) & (num_val > 255)) [
+                        is_raw = 1;
+                    ]
+                ]
+
+                if (is_raw == 0) [
+                    if (i > 0) [
+                        lpos = i - 1;
+                        lsp = 1;
+                        loop (ls:8 = 0 .. 8) [
+                            if (lsp == 1) [
+                                if (src_tape@[lpos * 1] == 32) [
+                                    if (lpos > 0) [
+                                        lpos = lpos - 1;
+                                    ] else [
+                                        lsp = 0;
+                                    ]
+                                ] else [
+                                    lsp = 0;
+                                ]
+                            ]
+                        ]
+
+                        lc = src_tape@[lpos * 1];
+                        if ((!(lc < 48)) & (lc < 58)) [
+                            l_end = lpos;
+                            l_start = lpos;
+                            lw = 1;
+                            loop (lwd:12 = 0 .. 12) [
+                                if (lw == 1) [
+                                    if (l_start > 0) [
+                                        pc = src_tape@[(l_start - 1) * 1];
+                                        if ((!(pc < 48)) & (pc < 58)) [
+                                            l_start = l_start - 1;
+                                        ] else [
+                                            lw = 0;
+                                        ]
+                                    ] else [
+                                        lw = 0;
+                                    ]
+                                ]
+                            ]
+
+                            is_ident = 0;
+                            l_neg = 0;
+                            if (l_start > 0) [
+                                bc = src_tape@[(l_start - 1) * 1];
+                                if (bc == 45) [
+                                    l_neg = 1;
+                                    if (l_start > 1) [
+                                        bbc = src_tape@[(l_start - 2) * 1];
+                                        if (slim_is_ident_char(bbc) == 1) [
+                                            is_ident = 1;
+                                        ]
+                                    ]
+                                ] else [
+                                    if (slim_is_ident_char(bc) == 1) [
+                                        is_ident = 1;
+                                    ]
+                                ]
+                            ]
+
+                            if (is_ident == 0) [
+                                lnum_val = 0;
+                                loop (pk:12 = 0 .. 12) [
+                                    idx = l_start + pk;
+                                    if (!(idx > l_end)) [
+                                        dc = src_tape@[idx * 1];
+                                        lnum_val = (lnum_val * 10) + (dc - 48);
+                                    ]
+                                ]
+                                if (lnum_val == 65535) [
+                                    is_raw = 1;
+                                ]
+                                if (lnum_val == 4294967295) [
+                                    is_raw = 1;
+                                ]
+                                if ((l_neg == 1) & (lnum_val == 1)) [
+                                    is_raw = 1;
+                                ]
+                                if ((l_neg == 0) & (lnum_val > 255)) [
+                                    is_raw = 1;
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+
+                if (is_raw == 1) [
+                    diag_buf@[452] = curr_file;
+                    diag_emit_tag!(diag_buf, TAG_RAWDATA, curr_line, 0, 0);
+                    violations = violations + 1;
+                ]
+            ]
+
+            // Check identifiers for call sites, [FOSSIL], [SPLINTER]
+            if (slim_is_ident_char(ch) == 1) [
+                id_ptr = src_tape + i;
+                id_len = 0;
+                ida = 1;
+                loop (idl:128 = 0 .. 128) [
+                    if (ida == 1) [
+                        if ((i + idl) < tape_len) [
+                            idc = src_tape@[(i + idl) * 1];
+                            if (slim_is_ident_char(idc) == 1) [
+                                id_len = id_len + 1;
+                            ] else [
+                                ida = 0;
+                            ]
+                        ]
+                    ]
+                ]
+
+                // Check if preceded by 'fn '
+                is_decl = 0;
+                if (i > 2) [
+                    if ((src_tape@[(i - 3) * 1] == 102) & (src_tape@[(i - 2) * 1] == 110) & (src_tape@[(i - 1) * 1] == 32)) [
+                        is_decl = 1;
+                    ]
+                ]
+
+                // Call site detection: followed by '(' or '!('
+                after_id = i + id_len;
+                is_call = 0;
+                if (after_id < tape_len) [
+                    if (src_tape@[after_id * 1] == 40) [
+                        is_call = 1;
+                    ]
+                    if ((src_tape@[after_id * 1] == 33) & ((after_id + 1) < tape_len)) [
+                        if (src_tape@[(after_id + 1) * 1] == 40) [
+                            is_call = 1;
+                        ]
+                    ]
+                ]
+
+                if ((is_call == 1) & (is_decl == 0)) [
+                    if (func_count > 0) [
+                        loop (fi:2048 = 0 .. func_count) [
+                            foff = fi * FUNC_REC_WORDS;
+                            f_ptr = func_table@[(foff + FUNC_REC_PTR)];
+                            f_len = func_table@[(foff + FUNC_REC_LEN)];
+                            if (slim_names_match(f_ptr, f_len, id_ptr, id_len) == 1) [
+                                func_table@[(foff + FUNC_REC_CALLED)] = 1;
+                            ]
+                        ]
+                    ]
+                ]
+
+                // Check for assignment: [FOSSIL] and [SPLINTER]
+                // Only if identifier is valid start (a-z, A-Z, _)
+                if (slim_is_ident_start(ch) == 1) [
+                    apos = i + id_len;
+                    spa = 1;
+                    loop (sp:32 = 0 .. 32) [
+                        if (spa == 1) [
+                            if (apos < tape_len) [
+                                if (src_tape@[apos * 1] == 32) [
+                                    apos = apos + 1;
+                                ] else [
+                                    spa = 0;
+                                ]
+                            ]
+                        ]
+                    ]
+
+                    is_assign = 0;
+                    if (apos < tape_len) [
+                        if (src_tape@[apos * 1] == 61) [
+                            if ((apos + 1) < tape_len) [
+                                if (src_tape@[(apos + 1) * 1] != 61) [
+                                    is_assign = 1;
+                                ]
+                            ]
+                        ]
+                    ]
+
+                    if (is_assign == 1) [
+                        // Check for [FOSSIL]: x = x;
+                        rhs_pos = apos + 1;
+                        rspa = 1;
+                        loop (rsp:32 = 0 .. 32) [
+                            if (rspa == 1) [
+                                if (rhs_pos < tape_len) [
+                                    if (src_tape@[rhs_pos * 1] == 32) [
+                                        rhs_pos = rhs_pos + 1;
+                                    ] else [
+                                        rspa = 0;
+                                    ]
+                                ]
+                            ]
+                        ]
+
+                        rhs_len = 0;
+                        ra = 1;
+                        loop (rl:128 = 0 .. 128) [
+                            if (ra == 1) [
+                                if ((rhs_pos + rl) < tape_len) [
+                                    rc = src_tape@[(rhs_pos + rl) * 1];
+                                    if (slim_is_ident_char(rc) == 1) [
+                                        rhs_len = rhs_len + 1;
+                                    ] else [
+                                        ra = 0;
+                                    ]
+                                ]
+                            ]
+                        ]
+
+                        if (rhs_len > 0) [
+                            after_rhs = rhs_pos + rhs_len;
+                            arsa = 1;
+                            loop (asp:16 = 0 .. 16) [
+                                if (arsa == 1) [
+                                    if (after_rhs < tape_len) [
+                                        if (src_tape@[after_rhs * 1] == 32) [
+                                            after_rhs = after_rhs + 1;
+                                        ] else [
+                                            arsa = 0;
+                                        ]
+                                    ]
+                                ]
+                            ]
+
+                            if (after_rhs < tape_len) [
+                                if (src_tape@[after_rhs * 1] == 59) [
+                                    rhs_ptr = src_tape + rhs_pos;
+                                    if (slim_names_match(id_ptr, id_len, rhs_ptr, rhs_len) == 1) [
+                                        diag_buf@[452] = curr_file;
+                                        diag_emit_tag!(diag_buf, TAG_FOSSIL, curr_line, id_ptr, id_len);
+                                        violations = violations + 1;
+                                    ]
+                                ]
+                            ]
+                        ]
+
+                        // Check for [SPLINTER]: x = 0;
+                        if ((apos + 3) < tape_len) [
+                            if ((src_tape@[(apos + 0) * 1] == 61) & (src_tape@[(apos + 1) * 1] == 32) & (src_tape@[(apos + 2) * 1] == 48) & (src_tape@[(apos + 3) * 1] == 59)) [
+                                if ((last_zero_len > 0) & ((curr_line - last_zero_line) < 2)) [
+                                    is_same = slim_names_match(id_ptr, id_len, last_zero_ptr, last_zero_len);
+                                    if (is_same == 0) [
+                                        pref_len = slim_common_prefix_len(id_ptr, id_len, last_zero_ptr, last_zero_len);
+                                        if (pref_len > 3) [
+                                            is_slice = slim_is_slice_pair(id_ptr, id_len, last_zero_ptr, last_zero_len);
+                                            if (is_slice == 0) [
+                                                diag_buf@[452] = curr_file;
+                                                diag_emit_tag!(diag_buf, TAG_SPLINTER, curr_line, id_ptr, id_len);
+                                                violations = violations + 1;
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                                last_zero_ptr  = id_ptr;
+                                last_zero_len  = id_len;
+                                last_zero_line = curr_line;
+                            ]
+                        ]
+                    ]
+                ]
+
+                i = i + id_len;
+            ] else [
+                i = i + 1;
+            ]
+            ]
+        ]
+    ]
+
+    ret violations;
+]
+
+// ---------------------------------------------------------------------------
+// 2. Wrapper Function Auditor
+// Checks [TAG: WRAPPER] for trivial 1:1 forwarding calls
+// ---------------------------------------------------------------------------
+fn slim_audit_wrappers!(arena, src_tape, tape_len, diag_buf, sym_reg) [
+    violations = 0;
+    file_table = diag_buf@[450];
+    file_count = diag_buf@[451];
+    curr_file  = 0;
+    curr_line  = 1;
+
+    extern_table = sym_reg@[2];
+    extern_count = sym_reg@[3];
+
+    param_table = arena_alloc_words!(arena, MAX_AUDIT_PARAMS * 2);
+    arg_table   = arena_alloc_words!(arena, MAX_AUDIT_PARAMS * 2);
+
+    root_depth = 0;
+    i = 0;
+    loop (step:10000000 = 0 .. tape_len) [
+        if (i < tape_len) [
+            ch = src_tape@[i * 1];
+            if (ch == 10) [
+                curr_line = curr_line + 1;
+            ]
+
+            if ((file_count > 1) & (file_table != 0)) [
+                f_end_idx = (curr_file * 4) + 3;
+                f_end = file_table@[f_end_idx];
+                if ((!(i < f_end)) & ((curr_file + 1) < file_count)) [
+                    curr_file = curr_file + 1;
+                    curr_line = 1;
+                ]
+            ]
+
+            // Skip comments
+            if ((ch == 47) & ((i + 1) < tape_len)) [
+                if (src_tape@[(i + 1) * 1] == 47) [
+                    sc_active = 1;
+                    loop (sc:1000000 = 0 .. tape_len) [
+                        if (sc_active == 1) [
+                            if (i < tape_len) [
+                                if (src_tape@[i * 1] == 10) [
+                                    curr_line = curr_line + 1;
+                                    sc_active = 0;
+                                ] else [
+                                    i = i + 1;
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+
+            if (ch == 91) [
+                root_depth = root_depth + 1;
+            ]
+            if (ch == 93) [
+                if (root_depth > 0) [
+                    root_depth = root_depth - 1;
+                ]
+            ]
+
+            // Detect 'fn ' at root depth
+            if ((root_depth == 0) & (ch == 102)) [
+                if ((i + 2) < tape_len) [
+                    if ((src_tape@[(i + 1) * 1] == 110) & (src_tape@[(i + 2) * 1] == 32)) [
+                        is_fn_bnd = 1;
+                        if (i > 0) [
+                            if (slim_is_ident_char(src_tape@[(i - 1) * 1]) == 1) [
+                                is_fn_bnd = 0;
+                            ]
+                        ]
+
+                        // Check if preceded by 'extern'
+                        if (is_fn_bnd == 1) [
+                            is_extern_decl = 0;
+                            bk = i - 1;
+                            bk_active = 1;
+                            loop (bkl:64 = 0 .. 64) [
+                                if (bk_active == 1) [
+                                    if (bk > 0) [
+                                        bkc = src_tape@[bk * 1];
+                                        if ((bkc == 32) | (bkc == 9) | (bkc == 10) | (bkc == 13)) [
+                                            bk = bk - 1;
+                                        ] else [
+                                            bk_active = 0;
+                                        ]
+                                    ] else [
+                                        bk_active = 0;
+                                    ]
+                                ]
+                            ]
+                            if (bk > 4) [
+                                if ((src_tape@[(bk - 5) * 1] == 101) & (src_tape@[(bk - 4) * 1] == 120) & (src_tape@[(bk - 3) * 1] == 116) & (src_tape@[(bk - 2) * 1] == 101) & (src_tape@[(bk - 1) * 1] == 114) & (src_tape@[bk * 1] == 110)) [
+                                    is_extern_decl = 1;
+                                ]
+                            ]
+
+                            if (is_extern_decl == 0) [
+                                fn_line = curr_line;
+                                pos = i + 3;
+
+                                // Skip spaces
+                                sp_act = 1;
+                                loop (spl:64 = 0 .. 64) [
+                                    if (sp_act == 1) [
+                                        if (pos < tape_len) [
+                                            spc = src_tape@[pos * 1];
+                                            if ((spc == 32) | (spc == 9) | (spc == 10) | (spc == 13)) [
+                                                if (spc == 10) [
+                                                    curr_line = curr_line + 1;
+                                                ]
+                                                pos = pos + 1;
+                                            ] else [
+                                                sp_act = 0;
+                                            ]
+                                        ]
+                                    ]
+                                ]
+
+                                // Read function name
+                                fn_name_ptr = src_tape + pos;
+                                fn_name_len = 0;
+                                fn_act = 1;
+                                loop (fnl:128 = 0 .. 128) [
+                                    if (fn_act == 1) [
+                                        if (pos < tape_len) [
+                                            if (slim_is_ident_char(src_tape@[pos * 1]) == 1) [
+                                                fn_name_len = fn_name_len + 1;
+                                                pos = pos + 1;
+                                            ] else [
+                                                fn_act = 0;
+                                            ]
+                                        ]
+                                    ]
+                                ]
+
+                                is_entry = slim_is_entrypoint(fn_name_ptr, fn_name_len);
+
+                                // Advance to '('
+                                to_par = 1;
+                                loop (tpl:64 = 0 .. 64) [
+                                    if (to_par == 1) [
+                                        if (pos < tape_len) [
+                                            if (src_tape@[pos * 1] == 40) [
+                                                to_par = 0;
+                                            ] else [
+                                                if (src_tape@[pos * 1] == 10) [
+                                                    curr_line = curr_line + 1;
+                                                ]
+                                                pos = pos + 1;
+                                            ]
+                                        ]
+                                    ]
+                                ]
+
+                                if ((is_entry == 0) & (pos < tape_len) & (src_tape@[pos * 1] == 40)) [
+                                    pos = pos + 1;
+                                    param_count = 0;
+                                    p_scan_act = 1;
+                                    loop (psl:256 = 0 .. 256) [
+                                        if (p_scan_act == 1) [
+                                            if (pos < tape_len) [
+                                                pch = src_tape@[pos * 1];
+                                                if (pch == 41) [
+                                                    pos = pos + 1;
+                                                    p_scan_act = 0;
+                                                ] else [
+                                                    if ((pch == 32) | (pch == 9) | (pch == 10) | (pch == 13) | (pch == 44)) [
+                                                        if (pch == 10) [
+                                                            curr_line = curr_line + 1;
+                                                        ]
+                                                        pos = pos + 1;
+                                                    ] else [
+                                                        if (slim_is_ident_char(pch) == 1) [
+                                                            p_ptr = src_tape + pos;
+                                                            p_len = 0;
+                                                            pla = 1;
+                                                            loop (plk:64 = 0 .. 64) [
+                                                                if (pla == 1) [
+                                                                    if (pos < tape_len) [
+                                                                        if (slim_is_ident_char(src_tape@[pos * 1]) == 1) [
+                                                                            p_len = p_len + 1;
+                                                                            pos = pos + 1;
+                                                                        ] else [
+                                                                            pla = 0;
+                                                                        ]
+                                                                    ]
+                                                                ]
+                                                            ]
+                                                            if (param_count < MAX_AUDIT_PARAMS) [
+                                                                poff = param_count * 2;
+                                                                param_table@[(poff + 0)] = p_ptr;
+                                                                param_table@[(poff + 1)] = p_len;
+                                                                param_count = param_count + 1;
+                                                            ]
+                                                        ] else [
+                                                            pos = pos + 1;
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+
+                                    // Advance to '['
+                                    to_brk = 1;
+                                    loop (tbl:64 = 0 .. 64) [
+                                        if (to_brk == 1) [
+                                            if (pos < tape_len) [
+                                                if (src_tape@[pos * 1] == 91) [
+                                                    to_brk = 0;
+                                                ] else [
+                                                    if (src_tape@[pos * 1] == 10) [
+                                                        curr_line = curr_line + 1;
+                                                    ]
+                                                    pos = pos + 1;
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+
+                                    if ((pos < tape_len) & (src_tape@[pos * 1] == 91)) [
+                                        pos = pos + 1;
+                                        body_depth = 1;
+                                        semi_count = 0;
+                                        is_helper  = 0;
+                                        call_count = 0;
+                                        call_target_ptr = 0;
+                                        call_target_len = 0;
+                                        arg_count    = 0;
+                                        assign_count = 0;
+                                        assign_var_ptr = 0;
+                                        assign_var_len = 0;
+                                        ret_var_ptr  = 0;
+                                        ret_var_len  = 0;
+
+                                        loop (bscan:100000 = 0 .. 100000) [
+                                            if ((body_depth > 0) & (pos < tape_len)) [
+                                                bch = src_tape@[pos * 1];
+                                                if (bch == 10) [
+                                                    curr_line = curr_line + 1;
+                                                ]
+
+                                                // Skip comments
+                                                if ((bch == 47) & ((pos + 1) < tape_len)) [
+                                                    if (src_tape@[(pos + 1) * 1] == 47) [
+                                                        bsc = 1;
+                                                        loop (bsck:10000 = 0 .. 10000) [
+                                                            if (bsc == 1) [
+                                                                if (pos < tape_len) [
+                                                                    if (src_tape@[pos * 1] == 10) [
+                                                                        curr_line = curr_line + 1;
+                                                                        bsc = 0;
+                                                                    ] else [
+                                                                        pos = pos + 1;
+                                                                    ]
+                                                                ]
+                                                            ]
+                                                        ]
+                                                    ]
+                                                ]
+
+                                                if (bch == 91) [
+                                                    body_depth = body_depth + 1;
+                                                    is_helper  = 1;
+                                                ]
+                                                if (bch == 93) [
+                                                    body_depth = body_depth - 1;
+                                                ]
+
+                                                if (body_depth == 1) [
+                                                    if (bch == 59) [
+                                                        semi_count = semi_count + 1;
+                                                        if (semi_count > 2) [
+                                                            is_helper = 1;
+                                                        ]
+                                                    ]
+                                                    // Memory access '@' -> Helper!
+                                                    if (bch == 64) [
+                                                        is_helper = 1;
+                                                    ]
+                                                    // Operators -> Helper!
+                                                    if ((bch == 43) | (bch == 42) | (bch == 37) | (bch == 94)) [
+                                                        is_helper = 1;
+                                                    ]
+                                                    if ((bch == 38) | (bch == 124) | (bch == 60) | (bch == 62) | (bch == 45)) [
+                                                        is_helper = 1;
+                                                    ]
+                                                    if (bch == 61) [
+                                                        if ((pos + 1) < tape_len) [
+                                                            if (src_tape@[(pos + 1) * 1] == 61) [
+                                                                is_helper = 1;
+                                                            ] else [
+                                                                assign_count = assign_count + 1;
+                                                                if (assign_count > 1) [
+                                                                    is_helper = 1;
+                                                                ]
+                                                            ]
+                                                        ]
+                                                    ]
+                                                    if (bch == 33) [
+                                                        if ((pos + 1) < tape_len) [
+                                                            if (src_tape@[(pos + 1) * 1] == 61) [
+                                                                is_helper = 1;
+                                                            ]
+                                                        ]
+                                                    ]
+
+                                                    // Detect 'ret' (114, 101, 116)
+                                                    if ((bch == 114) & ((pos + 3) < tape_len)) [
+                                                        if ((src_tape@[(pos + 1) * 1] == 101) & (src_tape@[(pos + 2) * 1] == 116) & (src_tape@[(pos + 3) * 1] == 32)) [
+                                                            r_after = pos + 4;
+                                                            r_act = 1;
+                                                            loop (ral:32 = 0 .. 32) [
+                                                                if (r_act == 1) [
+                                                                    if (r_after < tape_len) [
+                                                                        rc = src_tape@[r_after * 1];
+                                                                        if ((rc == 32) | (rc == 9)) [
+                                                                            r_after = r_after + 1;
+                                                                        ] else [
+                                                                            r_act = 0;
+                                                                        ]
+                                                                    ]
+                                                                ]
+                                                            ]
+                                                            if (r_after < tape_len) [
+                                                                ret_var_ptr = src_tape + r_after;
+                                                                ret_var_len = 0;
+                                                                rv_act = 1;
+                                                                loop (rvl:64 = 0 .. 64) [
+                                                                    if (rv_act == 1) [
+                                                                        if (r_after < tape_len) [
+                                                                            if (slim_is_ident_char(src_tape@[r_after * 1]) == 1) [
+                                                                                ret_var_len = ret_var_len + 1;
+                                                                                r_after = r_after + 1;
+                                                                            ] else [
+                                                                                rv_act = 0;
+                                                                            ]
+                                                                        ]
+                                                                    ]
+                                                                ]
+                                                            ]
+                                                        ]
+                                                    ]
+
+                                                    // Function call in body
+                                                    if (slim_is_ident_char(bch) == 1) [
+                                                        t_ptr = src_tape + pos;
+                                                        t_len = 0;
+                                                        ta_act = 1;
+                                                        loop (tal:64 = 0 .. 64) [
+                                                            if (ta_act == 1) [
+                                                                if (pos < tape_len) [
+                                                                    if (slim_is_ident_char(src_tape@[pos * 1]) == 1) [
+                                                                        t_len = t_len + 1;
+                                                                        pos = pos + 1;
+                                                                    ] else [
+                                                                        ta_act = 0;
+                                                                    ]
+                                                                ]
+                                                            ]
+                                                        ]
+
+                                                        if ((pos < tape_len) & (src_tape@[pos * 1] == 40)) [
+                                                            call_count = call_count + 1;
+                                                            call_target_ptr = t_ptr;
+                                                            call_target_len = t_len;
+                                                            pos = pos + 1;
+                                                            arg_count = 0;
+
+                                                            arg_act = 1;
+                                                            loop (asl:256 = 0 .. 256) [
+                                                                if (arg_act == 1) [
+                                                                    if (pos < tape_len) [
+                                                                        ach = src_tape@[pos * 1];
+                                                                        if (ach == 41) [
+                                                                            pos = pos + 1;
+                                                                            arg_act = 0;
+                                                                        ] else [
+                                                                            if ((ach == 32) | (ach == 9) | (ach == 10) | (ach == 13) | (ach == 44)) [
+                                                                                if (ach == 10) [
+                                                                                    curr_line = curr_line + 1;
+                                                                                ]
+                                                                                pos = pos + 1;
+                                                                            ] else [
+                                                                                if (slim_is_ident_char(ach) == 1) [
+                                                                                    a_ptr = src_tape + pos;
+                                                                                    a_len = 0;
+                                                                                    ala = 1;
+                                                                                    loop (alk:64 = 0 .. 64) [
+                                                                                        if (ala == 1) [
+                                                                                            if (pos < tape_len) [
+                                                                                                if (slim_is_ident_char(src_tape@[pos * 1]) == 1) [
+                                                                                                    a_len = a_len + 1;
+                                                                                                    pos = pos + 1;
+                                                                                                ] else [
+                                                                                                    ala = 0;
+                                                                                                ]
+                                                                                            ]
+                                                                                        ]
+                                                                                    ]
+                                                                                    if (arg_count < MAX_AUDIT_PARAMS) [
+                                                                                        aoff = arg_count * 2;
+                                                                                        arg_table@[(aoff + 0)] = a_ptr;
+                                                                                        arg_table@[(aoff + 1)] = a_len;
+                                                                                        arg_count = arg_count + 1;
+                                                                                    ]
+                                                                                ] else [
+                                                                                    is_helper = 1;
+                                                                                    pos = pos + 1;
+                                                                                ]
+                                                                            ]
+                                                                        ]
+                                                                    ]
+                                                                ]
+                                                            ]
+                                                        ]
+                                                    ]
+                                                ]
+                                                pos = pos + 1;
+                                            ]
+                                        ]
+
+                                        // Wrapper validation
+                                        if ((is_helper == 0) & (call_count == 1) & (arg_count == param_count)) [
+                                            is_ext = slim_is_extern(extern_table, extern_count, call_target_ptr, call_target_len);
+                                            if (is_ext == 0) [
+                                                args_match = 1;
+                                                loop (ck:16 = 0 .. param_count) [
+                                                    poff = ck * 2;
+                                                    aoff = ck * 2;
+                                                    pptr = param_table@[(poff + 0)];
+                                                    plen = param_table@[(poff + 1)];
+                                                    aptr = arg_table@[(aoff + 0)];
+                                                    alen = arg_table@[(aoff + 1)];
+                                                    if (slim_names_match(pptr, plen, aptr, alen) == 0) [
+                                                        args_match = 0;
+                                                    ]
+                                                ]
+
+                                                if (args_match == 1) [
+                                                    diag_buf@[452] = curr_file;
+                                                    diag_emit_tag!(diag_buf, TAG_WRAPPER, fn_line, fn_name_ptr, fn_name_len);
+                                                    violations = violations + 1;
+                                                ]
+                                            ]
+                                        ]
+
+                                        i = pos;
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+
+            i = i + 1;
+        ]
+    ]
+
+    ret violations;
+]
+
+// ---------------------------------------------------------------------------
+// 3. Local Scope Dead Store Auditor
+// Checks [TAG: UNNECESSARY] for assigned variables never read
+// ---------------------------------------------------------------------------
+fn slim_audit_scopes!(arena, src_tape, tape_len, diag_buf, sym_reg) [
+    violations = 0;
+    file_table = diag_buf@[450];
+    file_count = diag_buf@[451];
+    curr_file  = 0;
+    curr_line  = 1;
+
+    file_depth = 0;
+    fn_body_start = 0;
+    i = 0;
+    loop (step:10000000 = 0 .. tape_len) [
+        if (i < tape_len) [
+            ch = src_tape@[i * 1];
+            if (ch == 10) [
+                curr_line = curr_line + 1;
+            ]
+
+            if ((file_count > 1) & (file_table != 0)) [
+                f_end_idx = (curr_file * 4) + 3;
+                f_end = file_table@[f_end_idx];
+                if ((!(i < f_end)) & ((curr_file + 1) < file_count)) [
+                    curr_file = curr_file + 1;
+                    curr_line = 1;
+                ]
+            ]
+
+            if (ch == 91) [
+                if (file_depth == 0) [
+                    fn_body_start = i + 1;
+                ]
+                file_depth = file_depth + 1;
+            ]
+            if (ch == 93) [
+                if (file_depth > 0) [
+                    file_depth = file_depth - 1;
+                ]
+            ]
+
+            // Skip comments
+            if ((ch == 47) & ((i + 1) < tape_len)) [
+                if (src_tape@[(i + 1) * 1] == 47) [
+                    sc_act = 1;
+                    loop (sc:1000000 = 0 .. tape_len) [
+                        if (sc_act == 1) [
+                            if (i < tape_len) [
+                                if (src_tape@[i * 1] == 10) [
+                                    curr_line = curr_line + 1;
+                                    sc_act = 0;
+                                ] else [
+                                    i = i + 1;
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+
+            // Variable assignment: '<ident> = '
+            if (slim_is_ident_start(ch) == 1) [
+                is_mem_store = 0;
+                if (i > 0) [
+                    prev_c = src_tape@[(i - 1) * 1];
+                    if ((prev_c == 64) | (prev_c == 46)) [
+                        is_mem_store = 1;
+                    ]
+                ]
+
+                // Check const
+                is_const = 0;
+                bk_pos = i;
+                bk_act = 1;
+                loop (bk:32 = 0 .. 32) [
+                    if (bk_act == 1) [
+                        if (bk_pos > 0) [
+                            pb = src_tape@[(bk_pos - 1) * 1];
+                            if ((pb == 32) | (pb == 9)) [
+                                bk_pos = bk_pos - 1;
+                            ] else [
+                                bk_act = 0;
+                            ]
+                        ]
+                    ]
+                ]
+                if (bk_pos > 4) [
+                    if ((src_tape@[(bk_pos - 5) * 1] == 99) & (src_tape@[(bk_pos - 4) * 1] == 111) & (src_tape@[(bk_pos - 3) * 1] == 110) & (src_tape@[(bk_pos - 2) * 1] == 115) & (src_tape@[(bk_pos - 1) * 1] == 116)) [
+                        is_const = 1;
+                    ]
+                ]
+
+                var_ptr = src_tape + i;
+                var_len = 0;
+                vl_act  = 1;
+                loop (vl:128 = 0 .. 128) [
+                    if (vl_act == 1) [
+                        if ((i + vl) < tape_len) [
+                            vc = src_tape@[(i + vl) * 1];
+                            if (slim_is_ident_char(vc) == 1) [
+                                var_len = var_len + 1;
+                            ] else [
+                                vl_act = 0;
+                            ]
+                        ]
+                    ]
+                ]
+
+                is_wildcard = 0;
+                if (var_len == 1) [
+                    if (var_ptr@[0 * 1] == 95) [
+                        is_wildcard = 1;
+                    ]
+                ]
+
+                after_v = i + var_len;
+                spa_act = 1;
+                loop (sp:64 = 0 .. 64) [
+                    if (spa_act == 1) [
+                        if (after_v < tape_len) [
+                            if (src_tape@[after_v * 1] == 32) [
+                                after_v = after_v + 1;
+                            ] else [
+                                spa_act = 0;
+                            ]
+                        ]
+                    ]
+                ]
+
+                is_assign = 0;
+                if (after_v < tape_len) [
+                    if (src_tape@[after_v * 1] == 61) [
+                        if ((after_v + 1) < tape_len) [
+                            if (src_tape@[(after_v + 1) * 1] != 61) [
+                                is_assign = 1;
+                            ]
+                        ]
+                    ]
+                ]
+
+                if ((is_assign == 1) & (is_mem_store == 0) & (is_const == 0) & (is_wildcard == 0) & (file_depth > 0)) [
+                    assign_line = curr_line;
+                    scan_depth = file_depth;
+                    scan_end = after_v + 1;
+                    is_read = 0;
+                    is_dead_overwrite = 0;
+                    branch_seen = 0;
+
+                    loop (sc_scan:50000 = 0 .. 50000) [
+                        if ((scan_depth > 0) & (scan_end < tape_len)) [
+                            sch = src_tape@[scan_end * 1];
+
+                            // Skip comments
+                            if ((sch == 47) & ((scan_end + 1) < tape_len)) [
+                                if (src_tape@[(scan_end + 1) * 1] == 47) [
+                                    ssc = 1;
+                                    loop (ssck:10000 = 0 .. 10000) [
+                                        if (ssc == 1) [
+                                            if (scan_end < tape_len) [
+                                                if (src_tape@[scan_end * 1] == 10) [
+                                                    ssc = 0;
+                                                ] else [
+                                                    scan_end = scan_end + 1;
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+
+                            if (sch == 91) [
+                                if (scan_depth == file_depth) [
+                                    branch_seen = 1;
+                                ]
+                                scan_depth = scan_depth + 1;
+                            ]
+                            if (sch == 93) [
+                                scan_depth = scan_depth - 1;
+                                if (scan_depth < file_depth) [
+                                    branch_seen = 1;
+                                ]
+                            ]
+
+                            if (slim_is_ident_char(sch) == 1) [
+                                ref_ptr = src_tape + scan_end;
+                                ref_len = 0;
+                                r_act   = 1;
+                                loop (rl:128 = 0 .. 128) [
+                                    if (r_act == 1) [
+                                        if ((scan_end + rl) < tape_len) [
+                                            rc = src_tape@[(scan_end + rl) * 1];
+                                            if (slim_is_ident_char(rc) == 1) [
+                                                ref_len = ref_len + 1;
+                                            ] else [
+                                                r_act = 0;
+                                            ]
+                                        ]
+                                    ]
+                                ]
+
+                                if (slim_names_match(var_ptr, var_len, ref_ptr, ref_len) == 1) [
+                                    // Check if this reference is a write (LHS) or a read (RHS/call/return)
+                                    after_ref = scan_end + ref_len;
+                                    ref_spa = 1;
+                                    loop (rsp:32 = 0 .. 32) [
+                                        if (ref_spa == 1) [
+                                            if (after_ref < tape_len) [
+                                                if (src_tape@[after_ref * 1] == 32) [
+                                                    after_ref = after_ref + 1;
+                                                ] else [
+                                                    ref_spa = 0;
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+
+                                    is_next_write = 0;
+                                    if (after_ref < tape_len) [
+                                        if (src_tape@[after_ref * 1] == 61) [
+                                            if ((after_ref + 1) < tape_len) [
+                                                if (src_tape@[(after_ref + 1) * 1] != 61) [
+                                                    is_next_write = 1;
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+
+                                    if (is_next_write == 1) [
+                                        // Check if variable is read in the RHS of this assignment
+                                        rhs_read = 0;
+                                        rhs_pos = after_ref + 1;
+                                        rhs_act = 1;
+                                        loop (rscan:1000 = 0 .. 1000) [
+                                            if (rhs_act == 1) [
+                                                if (rhs_pos < tape_len) [
+                                                    rch = src_tape@[rhs_pos * 1];
+                                                    if ((rch == 59) | (rch == 10) | (rch == 91) | (rch == 93)) [
+                                                        rhs_act = 0;
+                                                    ] else [
+                                                        if (slim_is_ident_char(rch) == 1) [
+                                                            r_id_ptr = src_tape + rhs_pos;
+                                                            r_id_len = 0;
+                                                            r_id_act = 1;
+                                                            loop (ril:128 = 0 .. 128) [
+                                                                if (r_id_act == 1) [
+                                                                    if ((rhs_pos + ril) < tape_len) [
+                                                                        r_c2 = src_tape@[(rhs_pos + ril) * 1];
+                                                                        if (slim_is_ident_char(r_c2) == 1) [
+                                                                            r_id_len = r_id_len + 1;
+                                                                        ] else [
+                                                                            r_id_act = 0;
+                                                                        ]
+                                                                    ]
+                                                                ]
+                                                            ]
+                                                            if (slim_names_match(var_ptr, var_len, r_id_ptr, r_id_len) == 1) [
+                                                                rhs_read = 1;
+                                                            ]
+                                                            rhs_pos = rhs_pos + r_id_len;
+                                                        ] else [
+                                                            rhs_pos = rhs_pos + 1;
+                                                        ]
+                                                    ]
+                                                ] else [
+                                                    rhs_act = 0;
+                                                ]
+                                            ]
+                                        ]
+
+                                        if (rhs_read == 1) [
+                                            is_read = 1;
+                                        ] else [
+                                            if ((is_read == 0) & (scan_depth == file_depth) & (branch_seen == 0)) [
+                                                is_dead_overwrite = 1;
+                                            ]
+                                        ]
+                                    ] else [
+                                        is_read = 1;
+                                    ]
+                                ]
+
+                                scan_end = scan_end + ref_len;
+                            ] else [
+                                scan_end = scan_end + 1;
+                            ]
+                        ]
+                    ]
+
+                    if (is_read == 0) [
+                        // Check if variable was read earlier in function (loop-carried state)
+                        back_pos = fn_body_start;
+                        loop (b_scan:50000 = 0 .. 50000) [
+                            if ((back_pos < i) & (is_read == 0)) [
+                                bch = src_tape@[back_pos * 1];
+                                if (slim_is_ident_char(bch) == 1) [
+                                    b_ref_ptr = src_tape + back_pos;
+                                    b_ref_len = 0;
+                                    b_act = 1;
+                                    loop (bl:128 = 0 .. 128) [
+                                        if (b_act == 1) [
+                                            if ((back_pos + bl) < i) [
+                                                bc = src_tape@[(back_pos + bl) * 1];
+                                                if (slim_is_ident_char(bc) == 1) [
+                                                    b_ref_len = b_ref_len + 1;
+                                                ] else [
+                                                    b_act = 0;
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+
+                                    if (slim_names_match(var_ptr, var_len, b_ref_ptr, b_ref_len) == 1) [
+                                        b_after = back_pos + b_ref_len;
+                                        b_spa = 1;
+                                        loop (bsp:32 = 0 .. 32) [
+                                            if (b_spa == 1) [
+                                                if (b_after < i) [
+                                                    if (src_tape@[b_after * 1] == 32) [
+                                                        b_after = b_after + 1;
+                                                    ] else [
+                                                        b_spa = 0;
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+
+                                        b_is_write = 0;
+                                        if (b_after < i) [
+                                            if (src_tape@[b_after * 1] == 61) [
+                                                if ((b_after + 1) < i) [
+                                                    if (src_tape@[(b_after + 1) * 1] != 61) [
+                                                        b_is_write = 1;
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+
+                                        if (b_is_write == 0) [
+                                            is_read = 1;
+                                        ]
+                                    ]
+
+                                    back_pos = back_pos + b_ref_len;
+                                ] else [
+                                    back_pos = back_pos + 1;
+                                ]
+                            ]
+                        ]
+                    ]
+
+                    if ((is_read == 0) | (is_dead_overwrite == 1)) [
+                        diag_buf@[452] = curr_file;
+                        diag_emit_tag!(diag_buf, TAG_UNNECESSARY, assign_line, var_ptr, var_len);
+                        violations = violations + 1;
+                    ]
+                ]
+
+                i = i + var_len;
+            ] else [
+                i = i + 1;
+            ]
+        ]
+    ]
+
+    ret violations;
+]
+
+// ---------------------------------------------------------------------------
+// Main Pass 2 Dispatcher
+// ---------------------------------------------------------------------------
+fn slim_audit_tape!(arena, src_tape, tape_len, diag_buf, sym_reg) [
+    v_stmts = slim_audit_statements!(arena, src_tape, tape_len, diag_buf, sym_reg);
+    v_wraps = slim_audit_wrappers!(arena, src_tape, tape_len, diag_buf, sym_reg);
+    v_scope = slim_audit_scopes!(arena, src_tape, tape_len, diag_buf, sym_reg);
+    total = v_stmts + v_wraps + v_scope;
+    ret total;
+]

@@ -1,0 +1,22 @@
+// EXPECT: 216
+// REQUIRE_INSN: neg
+// Test: Phase 5 LICM — Unary negation hoisting from loop
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn main() [
+    x = helper(8);
+    sum = 0;
+    loop (i:5 = 0 .. 5) [
+        inv = -x;
+        sum = sum + inv;
+    ]
+    // 5 iterations * -8 = -40
+    // -40 & 255 = 216
+    ret sum & 255;
+]

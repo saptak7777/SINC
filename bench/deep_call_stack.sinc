@@ -1,0 +1,25 @@
+fn leaf(a, b) [
+    ret (a * 3 + b * 5 + 7) & 65535;
+]
+
+fn mid2(a, b, c) [
+    l1 = leaf(a, b);
+    l2 = leaf(b, c);
+    ret (l1 ^ l2) + 11;
+]
+
+fn mid1(a, b, c, d) [
+    m1 = mid2(a, b, c);
+    m2 = mid2(b, c, d);
+    ret (m1 + m2 * 3) & 65535;
+]
+
+fn bench_deep_call() [
+    sum = 0;
+    loop (i:5000003 = 0 .. 5000003) [
+        x = i & 255;
+        r = mid1(x, x + 1, x + 2, x + 3);
+        sum = sum + r;
+    ]
+    ret sum & 255;
+]

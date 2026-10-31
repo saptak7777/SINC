@@ -1,0 +1,25 @@
+// ==========================================
+// hound/data/hud_layout.sinc
+// HOUND: The SINC Hardware Logic Probe
+// 4-Panel Telemetry Viewport & Layout Tokens
+// ==========================================
+
+// --- Word Slicer Modes ---
+const SLICE_MODE_U8   = 1;
+const SLICE_MODE_U16  = 2;
+const SLICE_MODE_U32  = 4;
+const SLICE_MODE_U64  = 8;
+
+// --- HUD Dimensions ---
+const HUD_WIDTH       = 80;
+const HUD_HEIGHT      = 24;
+const HUD_HALF_WIDTH  = 40;
+const HUD_PANEL_H     = 10;
+
+// --- Signal Trap Status ---
+const TRAP_STATUS_IDLE     = 0;
+const TRAP_STATUS_STEPPING = 1;
+const TRAP_STATUS_HALTED   = 2;
+const TRAP_STATUS_FRACTURE = 3;
+const TRAP_STATUS_BREACH   = 4;
+const TRAP_STATUS_EXITED   = 5;

@@ -1,0 +1,78 @@
+// EXPECT: 42
+// REQUIRE_INSN: idiv
+// Comprehensive verification of division:
+// 1. Divisor resident in phys reg 1 (%rcx) -> skips reload
+// 2. Divisor resident in non-%rcx register (%rdx, %rbx, %rsi) -> reloads to %rcx
+// 3. Chained division across multiple operations
+// 4. Divisor from spilled register under register pressure
+// 5. Negative division with signed sign-extension (cqo)
+
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn div_rcx_and_non_rcx(p1, p2, p3, p4) [
+    // p1 = rcx (phys 1)
+    // p2 = rdx (phys 2)
+    // p3 = rbx (phys 3)
+    // p4 = rsi (phys 4)
+    r1 = 100 / p1; // 100 / 2 = 50 (divisor in rcx)
+    r2 = 100 / p2; // 100 / 4 = 25 (divisor in rdx -> routed to rcx)
+    r3 = 100 / p3; // 100 / 5 = 20 (divisor in rbx -> routed to rcx)
+    r4 = 100 / p4; // 100 / 10 = 10 (divisor in rsi -> routed to rcx)
+    ret (r1 - r2) + (r3 - r4); // (50 - 25) + (20 - 10) = 25 + 10 = 35
+]
+
+fn div_chained(val) [
+    // 1000 / 2 / 5 / 10 = 10
+    a = val / 2;
+    b = a / 5;
+    c = b / 10;
+    ret c;
+]
+
+fn div_spill(base) [
+    // High register pressure forcing spills
+    v1 = base + 1;
+    v2 = base + 2;
+    v3 = base + 3;
+    v4 = base + 4;
+    v5 = base + 5;
+    v6 = base + 6;
+    v7 = base + 7;
+    v8 = base + 8;
+    v9 = base + 9;
+    v10 = base + 10;
+    v11 = base + 11;
+    v12 = base + 12;
+    v13 = base + 13;
+    v14 = base + 14;
+    sum = v1 + v2 + v3 + v4 + v5 + v6 + v7 + v8 + v9 + v10 + v11 + v12 + v13;
+    d = 140 / v14; // v14 spilled to stack slot
+    ret d + (sum - 91); // 10 + 0 = 10
+]
+
+fn div_signed(val) [
+    neg = 0 - val;
+    res = neg / 5; // -12
+    ret 0 - res; // 12
+]
+
+fn main() [
+    p1 = helper(2);
+    p2 = helper(4);
+    p3 = helper(5);
+    p4 = helper(10);
+    part1 = div_rcx_and_non_rcx(p1, p2, p3, p4); // 35
+    part2 = div_chained(helper(1000)); // 10
+    part3 = div_spill(helper(0)); // 10
+    part4 = div_signed(helper(60)); // 12
+    
+    // Check total: 35 + 10 - 10 + (12 - 5) = 42
+    ans = (part1 + part2) - part3 + (part4 - 5);
+    ret ans;
+]

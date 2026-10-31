@@ -1,0 +1,12 @@
+fn bench_branchless_filter() [
+    acc = 0;
+    seed = 1234567;
+    loop (i:100000000 = 0 .. 100000000) [
+        seed = (seed * 1103515245 + 12345) & 2147483647;
+        val = (seed >> 16) & 255;
+        if (val > 127) [
+            acc = acc + val;
+        ]
+    ]
+    ret acc & 255;
+]

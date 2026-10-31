@@ -1,0 +1,10 @@
+// COMPILE_ERROR: 14
+// Test: Attempting memory store mutation inside a pure function is rejected at compile time
+fn bad_pure_store(arr) [
+    arr@[0] = 42;
+    ret 0;
+]
+
+fn main!() [
+    ret 0;
+]

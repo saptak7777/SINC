@@ -1,0 +1,101 @@
+// ==========================================
+// steel/sys/os_linux.sinc
+// S.T.E.E.L. Linux Hardware & OS Control Module
+// Single Source of Truth for Linux OS Extensions
+// ==========================================
+
+const STEEL_PTRACE_TRACEME    = 0;
+const STEEL_PTRACE_PEEKDATA   = 2;
+const STEEL_PTRACE_CONT       = 7;
+const STEEL_PTRACE_SINGLESTEP = 9;
+const STEEL_PTRACE_GETREGS    = 12;
+
+const STEEL_WNOHANG           = 1;
+
+const STEEL_TCGETS            = 21505; // 0x5401
+const STEEL_TCSETS            = 21506; // 0x5402
+const STEEL_TIOCGWINSZ        = 21523; // 0x5413
+
+// 1. Raw TTY Mode: Non-canonical, single-character immediate input (VMIN=1, VTIME=0)
+fn steel_tty_raw!(termios_buf, termios_saved) [
+    // 1. Save original termios attributes (5 words / 36 bytes)
+    res = sys_ioctl!(0, STEEL_TCGETS, termios_saved);
+    if (res < 0) [ ret res; ]
+
+    // 2. Clone into working buffer
+    loop (i:5 = 0 .. 5) [
+        termios_buf@[i] = termios_saved@[i];
+    ]
+
+    // 3. Clear c_iflag bits (IXON=1024, ICRNL=256, BRKINT=2, INPCK=16, ISTRIP=32 -> 1330)
+    w0 = termios_buf@[0];
+    termios_buf@[0] = w0 & (-1 ^ 1330);
+
+    // 4. Clear c_lflag bits (ICANON=2, ECHO=8, ISIG=1, IEXTEN=32768, ECHONL=64 -> 32843)
+    // c_lflag is in Word 1 at bits 32..63
+    lflag_clear = 32843 << 32;
+    w1 = termios_buf@[1];
+    termios_buf@[1] = w1 & (-1 ^ lflag_clear);
+
+    // 5. Set VTIME=0 (byte 22) and VMIN=1 (byte 23) -> bits 48..63 of Word 2
+    vmin_vtime_clear = 65535 << 48;
+    w2 = termios_buf@[2] & (-1 ^ vmin_vtime_clear);
+    termios_buf@[2] = w2 | (1 << 56);
+
+    // 6. Apply raw attributes
+    ret sys_ioctl!(0, STEEL_TCSETS, termios_buf);
+]
+
+// 2. Non-Blocking TTY Mode: Polled single-character input (VMIN=0, VTIME=0)
+fn steel_tty_nonblocking!(termios_buf, termios_saved) [
+    res = sys_ioctl!(0, STEEL_TCGETS, termios_saved);
+    if (res < 0) [ ret res; ]
+
+    loop (i:5 = 0 .. 5) [
+        termios_buf@[i] = termios_saved@[i];
+    ]
+
+    w0 = termios_buf@[0];
+    termios_buf@[0] = w0 & (-1 ^ 1330);
+
+    lflag_clear = 32843 << 32;
+    w1 = termios_buf@[1];
+    termios_buf@[1] = w1 & (-1 ^ lflag_clear);
+
+    vmin_vtime_clear = 65535 << 48;
+    termios_buf@[2] = termios_buf@[2] & (-1 ^ vmin_vtime_clear);
+
+    ret sys_ioctl!(0, STEEL_TCSETS, termios_buf);
+]
+
+// 3. Cooked TTY Mode: Restores original terminal attributes
+fn steel_tty_cooked!(termios_saved) [
+    ret sys_ioctl!(0, STEEL_TCSETS, termios_saved);
+]
+
+// 4. Query Terminal Window Size (rows and columns)
+fn steel_tty_winsize!(winsize_buf) [
+    ret sys_ioctl!(0, STEEL_TIOCGWINSZ, winsize_buf);
+]
+
+// --- Process Tracing (ptrace stubs - not yet implemented) ---
+
+// 5. Non-Blocking Trap Check (WNOHANG) [Stub]
+fn steel_proc_poll_trap!(pid, status_ptr) [
+    ret 0;
+]
+
+// 6. Single-Step CPU Clock (Trap Flag TF) [Stub]
+fn steel_proc_step!(pid) [
+    ret 0;
+]
+
+// 7. Read 64-bit Memory Arena Word [Stub]
+fn steel_proc_peek_word!(pid, addr) [
+    ret 0;
+]
+
+// 8. Dump Physical CPU Registers [Stub]
+fn steel_proc_peek_regs!(pid, regs_buf) [
+    ret 0;
+]

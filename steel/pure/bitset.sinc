@@ -1,0 +1,75 @@
+// ==========================================
+// steel/data/bitset.sinc
+// S.T.E.E.L. 64-Bit Word Bitset Library
+// ==========================================
+
+fn bitset_words_needed(bit_count) [
+    ret (bit_count + 63) >> 6;
+]
+
+fn bitset_alloc!(arena, bit_count) [
+    num_words = (bit_count + 63) >> 6;
+    words = arena_alloc_words!(arena, num_words);
+    loop (i:1000000 = 0 .. num_words) [
+        words@[i] = 0;
+    ]
+    ret words;
+]
+
+fn bitset_zero!(words, num_words) [
+    loop (i:1000000 = 0 .. num_words) [
+        words@[i] = 0;
+    ]
+    ret 0;
+]
+
+fn bitset_set!(words, bit_idx) [
+    w_idx = bit_idx >> 6;
+    b_idx = bit_idx & 63;
+    words@[w_idx] = words@[w_idx] | (1 << b_idx);
+    ret 0;
+]
+
+fn bitset_clear!(words, bit_idx) [
+    w_idx = bit_idx >> 6;
+    b_idx = bit_idx & 63;
+    mask = -1 ^ (1 << b_idx);
+    words@[w_idx] = words@[w_idx] & mask;
+    ret 0;
+]
+
+fn bitset_test(words, bit_idx) [
+    w_idx = bit_idx >> 6;
+    b_idx = bit_idx & 63;
+    ret (words@[w_idx] >> b_idx) & 1;
+]
+
+fn bitset_union!(dst_words, src_words, num_words) [
+    loop (i:1000000 = 0 .. num_words) [
+        dst_words@[i] = dst_words@[i] | src_words@[i];
+    ]
+    ret 0;
+]
+
+fn bitset_intersect!(dst_words, src_words, num_words) [
+    loop (i:1000000 = 0 .. num_words) [
+        dst_words@[i] = dst_words@[i] & src_words@[i];
+    ]
+    ret 0;
+]
+
+fn bitset_copy!(dst_words, src_words, num_words) [
+    loop (i:1000000 = 0 .. num_words) [
+        dst_words@[i] = src_words@[i];
+    ]
+    ret 0;
+]
+
+fn bitset_is_empty(words, num_words) [
+    loop (i:1000000 = 0 .. num_words) [
+        if (words@[i] != 0) [
+            ret 0;
+        ]
+    ]
+    ret 1;
+]

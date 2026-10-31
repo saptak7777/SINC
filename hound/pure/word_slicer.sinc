@@ -1,0 +1,31 @@
+// ==========================================
+// hound/pure/word_slicer.sinc
+// HOUND: The SINC Hardware Logic Probe
+// Pure 64-Bit Word Slicer & Hex Utilities
+// ==========================================
+
+fn word_extract_u8(val, byte_idx) [
+    shift = byte_idx * 8;
+    ret (val >> shift) & 255;
+]
+
+fn word_extract_u16(val, short_idx) [
+    shift = short_idx * 16;
+    ret (val >> shift) & 65535;
+]
+
+fn word_extract_u32(val, dword_idx) [
+    shift = dword_idx * 32;
+    ret (val >> shift) & 4294967295;
+]
+
+fn char_is_printable(byte_val) [
+    if ((byte_val > 31) & (byte_val < 127)) [ ret 1; ]
+    ret 0;
+]
+
+fn hex_nibble_to_ascii(nibble) [
+    n = nibble & 15;
+    if (n < 10) [ ret 48 + n; ] // '0' .. '9'
+    ret 65 + (n - 10);          // 'A' .. 'F'
+]

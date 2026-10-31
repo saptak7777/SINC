@@ -1,0 +1,76 @@
+// ==========================================
+// sinc/pure/unroll.sinc
+// SINC Compiler: Flat-Tape Constant-Trip-Count Loop Unrolling
+// Architecture: Single Streaming Sweep & Inline Expansion
+// ==========================================
+
+fn ir_unroll!(arena, func_desc, global_scratch_tape) [
+    curr_len = func_desc@[1];
+    tape_ptr = func_desc@[0];
+
+    index_map = global_scratch_tape;
+    out_tape = index_map + ((curr_len + 1) * 8);
+    out_idx = 0;
+    in_idx = 0;
+    unroll_any = 0;
+
+    loop (loop_guard:10000000 = 0 .. curr_len) [
+        if (in_idx < curr_len) [
+            in_w0 = tape_ptr@[(in_idx * 4)];
+            unrolled = 0;
+            if ((in_w0 & 255) == 11) [
+                lp = tape_ptr@[(in_idx * 4 + 3)];
+                if (lp != 0) [
+                    w2 = tape_ptr@[(in_idx * 4 + 2)];
+                    then_tgt = w2 & 4294967295;
+                    else_tgt = (w2 >> 32) & 4294967295;
+                    if ((then_tgt == (in_idx + 1)) & (else_tgt > (in_idx + 5))) [
+                        latch_i = else_tgt - 1;
+                        start_k = lp & 4294967295;
+                        tc = (lp >> 32) - start_k;
+                        b_end = latch_i - 4;
+                        if ((tc > 0) & (tc < 9) & ((b_end - then_tgt) < 17)) [
+                            l_var = (tape_ptr@[(in_idx * 4 + 1)] >> 32) & 65535;
+                            body_safe = 1;
+                            loop (bi:1000 = then_tgt .. b_end) [
+                                bw0 = tape_ptr@[(bi * 4)];
+                                if ((((bw0 >> 48) & 255) > (EFFECT_BARRIER - 1)) | (((bw0 & 255) == 9) & (((bw0 >> 16) & 65535) == l_var))) [
+                                    body_safe = 0;
+                                ]
+                            ]
+                            if (body_safe == 1) [
+                                unrolled = 1;
+                                unroll_any = 1;
+                                index_map@[in_idx] = out_idx;
+                                loop (iter:16 = 0 .. tc) [
+                                    if (iter == 0) [
+                                        index_map@[then_tgt] = out_idx;
+                                    ]
+                                    out_idx = tape_set_4!(out_tape, out_idx, 1 | (l_var << 16), 0, start_k + iter, (start_k + iter) | ((start_k + iter) << 32));
+                                    loop (bi:1000 = then_tgt .. b_end) [
+                                        if ((iter == 0) & (bi > then_tgt)) [
+                                            index_map@[bi] = out_idx;
+                                        ]
+                                        out_idx = tape_copy_4!(out_tape, out_idx, tape_ptr, bi);
+                                    ]
+                                ]
+                                out_idx = tape_set_4!(out_tape, out_idx, 1 | (l_var << 16), 0, start_k + tc, (start_k + tc) | ((start_k + tc) << 32));
+                                loop (skip_i:10 = b_end .. (latch_i + 1)) [
+                                    index_map@[skip_i] = out_idx;
+                                ]
+                                in_idx = latch_i + 1;
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            if (unrolled == 0) [
+                index_map@[in_idx] = out_idx;
+                out_idx = tape_copy_4!(out_tape, out_idx, tape_ptr, in_idx);
+                in_idx = in_idx + 1;
+            ]
+        ]
+    ]
+
+    ret tape_commit!(arena, func_desc, out_tape, out_idx, curr_len, unroll_any, index_map, 0, 0);
+]

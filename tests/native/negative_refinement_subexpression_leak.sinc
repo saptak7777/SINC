@@ -1,0 +1,8 @@
+// COMPILE_ERROR: 15
+// Test: Sub-expression addition inside array index must not leak sub-operand bound
+fn main() [
+    buf:64 = 0;
+    i:8 = 3;
+    val = buf@[1000 + i];
+    ret val;
+]

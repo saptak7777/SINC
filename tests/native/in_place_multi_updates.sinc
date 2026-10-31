@@ -1,0 +1,16 @@
+// EXPECT: 172
+// Test: Multiple in-place updates with mixed operations
+fn main() [
+    a = 10;
+    b = 20;
+    c = 30;
+    d = 40;
+    loop (i:50 = 0 .. 50) [
+        a = a + 2;
+        b = b - 1;
+        c = (c ^ 7) + 1;
+        d = (d & 63) + 3;
+    ]
+    total = (a + b + c + d) & 255;
+    ret total;
+]

@@ -1,0 +1,11 @@
+fn bench_run_sinc() [
+    int_sum = 0;
+    loop (idx:100000000 = 0 .. 100000000) [
+        int_seed = idx;
+        int_a = 1 + (int_seed & 7);
+        int_b = 2 + (int_seed & 3);
+        int_c = 3 + (int_seed & 1);
+        int_sum = int_sum + (int_a + int_b) * int_c;
+    ]
+    ret int_sum;
+]

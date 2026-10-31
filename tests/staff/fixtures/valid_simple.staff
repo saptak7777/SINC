@@ -1,0 +1,24 @@
+// tests/staff/fixtures/valid_simple.staff
+artifact simple_app [
+    target = linux_x64;
+    type   = bin;
+    out    = bin/simple_app;
+    entry  = tests/staff/fixtures/src/sys/main.sinc;
+]
+
+sources [
+    data = [
+        tests/staff/fixtures/src/data/constants.sinc;
+    ];
+    pure = [
+        tests/staff/fixtures/src/pure/math.sinc;
+    ];
+    sys = [
+        tests/staff/fixtures/src/sys/main.sinc;
+    ];
+]
+
+flags [
+    optimize = 3;
+    heap     = 65536;
+]

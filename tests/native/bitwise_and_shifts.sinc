@@ -1,0 +1,16 @@
+// EXPECT: 13
+// REQUIRE_INSN: (shl|sar|shr)
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn main() [
+    base = helper(3);
+    a = base << 4;
+    b = a >> 1;
+    ret (b | 5) ^ 16;
+]

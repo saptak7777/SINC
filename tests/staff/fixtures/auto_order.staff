@@ -1,0 +1,19 @@
+// tests/staff/fixtures/auto_order.staff
+// Flat file list with unordered paths: sys, data, pure
+artifact auto_app [
+    target = linux_x64;
+    type   = bin;
+    out    = bin/auto_app;
+    entry  = tests/staff/fixtures/src/sys/main.sinc;
+]
+
+sources [
+    tests/staff/fixtures/src/sys/main.sinc;
+    tests/staff/fixtures/src/data/constants.sinc;
+    tests/staff/fixtures/src/pure/math.sinc;
+]
+
+flags [
+    optimize = 3;
+    heap     = 65536;
+]

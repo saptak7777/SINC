@@ -1,0 +1,22 @@
+// EXPECT: 42
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn compute_branch(val, flag) [
+    x = val + 10;
+    if (flag > 0) [
+        x = x + 15;
+    ]
+    ret x + 7;
+]
+
+fn main() [
+    val = helper(10);
+    flag = helper(1);
+    ret compute_branch(val, flag);
+]

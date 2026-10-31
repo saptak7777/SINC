@@ -1,0 +1,91 @@
+// ==========================================
+// sinc/pure/erls.sinc
+// SINC Compiler: Explicit Refined Linear Safeloader Pass
+// Architecture: Linear Window Diamond Flattening to CMOV
+// ==========================================
+
+fn erls_block_is_safe(tape_ptr, from_idx, to_idx) [
+    count = 0;
+    loop (i:10000000 = from_idx .. to_idx) [
+        off = i * 4;
+        w0 = tape_ptr@[off];
+        op = w0 & 255;
+        effect = (w0 >> 48) & 255;
+        if (((op == 2) & (tape_ptr@[(off + 3)] == 0)) | (effect > EFFECT_READ) | ((op == 4) & (((w0 >> 8) & 255) == 3) & (((w0 >> 56) & 2) == 0))) [
+            ret -1;
+        ]
+        if (op != 0) [
+            count = count + 1;
+        ]
+    ]
+    ret count;
+]
+
+fn ir_erls!(func_desc, global_scratch_tape) [
+    tape_ptr = func_desc@[0];
+    tape_len = func_desc@[1];
+
+    skip_until = 0;
+    loop (idx:10000000 = 0 .. tape_len) [
+        if (!(idx < skip_until)) [
+            o = idx * 4;
+            w0 = tape_ptr@[o];
+            if ((w0 & 255) == 11) [
+                then_start = idx + 1;
+                else_start = (tape_ptr@[(o + 2)] >> 32) & 4294967295;
+                if (else_start > then_start) [
+                    then_jump_idx = else_start - 1;
+                    if (((tape_ptr@[(then_jump_idx * 4)] & 255) == 10) & (tape_ptr@[(then_jump_idx * 4 + 2)] == else_start)) [
+                        count_then = erls_block_is_safe(tape_ptr, then_start, then_jump_idx);
+                        if ((count_then > -1) & (count_then < 16)) [
+                            cond_reg = tape_ptr@[(o + 1)] & 4294967295;
+                            start_slot = idx;
+                            if (idx > 0) [
+                                last_w0 = tape_ptr@[((idx - 1) * 4)];
+                                if (((last_w0 & 255) == 5) & (((last_w0 >> 16) & 65535) == cond_reg)) [
+                                    start_slot = idx - 1;
+                                ]
+                            ]
+
+                            scratch_idx = 0;
+                            loop (ni:10000000 = then_start .. then_jump_idx) [
+                                nop = tape_ptr@[(ni * 4)] & 255;
+                                if ((nop != 0) & (nop != 9)) [
+                                    scratch_idx = tape_copy_4!(global_scratch_tape, scratch_idx, tape_ptr, ni);
+                                ]
+                            ]
+                            if (start_slot == (idx - 1)) [
+                                scratch_idx = tape_copy_4!(global_scratch_tape, scratch_idx, tape_ptr, (idx - 1));
+                            ]
+
+                            // Emit fused Select instructions
+                            loop (s_i:10000000 = then_start .. then_jump_idx) [
+                                s_off = s_i * 4;
+                                sw0 = tape_ptr@[s_off];
+                                if ((sw0 & 255) == 9) [
+                                    dst_reg = (sw0 >> 16) & 65535;
+                                    then_val = tape_ptr@[(s_off + 1)] & 4294967295;
+                                    scratch_idx = tape_set_4!(global_scratch_tape, scratch_idx, IR_OP_SELECT | (dst_reg << 16) | (ROLE_CMOV_SELECT << 32), cond_reg | (then_val << 32), dst_reg, tape_ptr@[(s_off + 3)]);
+                                ]
+                            ]
+
+                            // In-place commit to tape_ptr
+                            loop (k:10000000 = 0 .. scratch_idx) [
+                                _ = tape_copy_4!(tape_ptr, (start_slot + k), global_scratch_tape, k);
+                            ]
+
+                            // Pad remaining dead slots with NOP (opcode 0)
+                            loop (k:10000000 = (start_slot + scratch_idx) .. else_start) [
+                                _ = tape_set_4!(tape_ptr, k, 0, 0, 0, 0);
+                            ]
+
+                            skip_until = else_start;
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+    ret 0;
+]

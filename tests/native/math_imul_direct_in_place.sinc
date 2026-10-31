@@ -1,0 +1,16 @@
+// EXPECT: 35
+// REQUIRE_INSN: imul
+// Test: Direct in-place imul emission without RAX bouncing
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn main() [
+    x = helper(5);
+    x = x * 7;
+    ret x & 255;
+]

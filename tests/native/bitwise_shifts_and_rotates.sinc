@@ -1,0 +1,19 @@
+// EXPECT: 85
+// REQUIRE_INSN: (shl|sar|shr)
+// Test: Complex bitwise operations, masking and shifts
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn main() [
+    val = helper(170);
+    mask = helper(15);
+    lo = val & mask;
+    hi = (val >> 4) & mask;
+    combined = (hi << 4) | lo;
+    ret (combined >> 1);
+]

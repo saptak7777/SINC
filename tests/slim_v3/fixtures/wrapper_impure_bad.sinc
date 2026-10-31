@@ -1,0 +1,13 @@
+// fixture: wrapper_impure_bad.sinc — 1:1 forwarding wrapper calling impure function
+fn compute!(x, y) [
+    ret x + y;
+]
+
+fn do_compute!(a, b) [
+    ret compute!(a, b);
+]
+
+fn main!(a, b) [
+    v = do_compute!(a, b);
+    ret v;
+]

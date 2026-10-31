@@ -1,0 +1,12 @@
+// EXPECT: 10
+fn count_up(limit) [
+    sum = 0;
+    loop (i = 0 .. limit) [
+        sum = sum + i;
+    ]
+    ret sum;
+]
+
+fn main() [
+    ret count_up(5);
+]

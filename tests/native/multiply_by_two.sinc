@@ -1,0 +1,11 @@
+// EXPECT: 32
+fn run_mul2(value) [
+    loop (i:5 = 0 .. 5) [
+        value = value * 2;
+    ]
+    ret value;
+]
+
+fn main() [
+    ret run_mul2(1);
+]

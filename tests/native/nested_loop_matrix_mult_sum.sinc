@@ -1,0 +1,11 @@
+// EXPECT: 70
+// Test: Nested loop 2D iteration and induction variable accumulation
+fn main() [
+    sum = 0;
+    loop (i:4 = 0 .. 4) [
+        loop (j:5 = 0 .. 5) [
+            sum = sum + i + j;
+        ]
+    ]
+    ret sum;
+]

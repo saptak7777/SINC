@@ -1,0 +1,10 @@
+// EXPECT: 241
+// REQUIRE_INSN: zmm
+// Test: 32-iteration AVX-512 loop reduction with non-zero initial accumulator
+fn main() [
+    acc = 1;
+    loop (i:32 = 0 .. 32) [
+        acc = acc + i * 2 - i;
+    ]
+    ret (acc & 255);
+]

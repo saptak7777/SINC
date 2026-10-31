@@ -1,0 +1,17 @@
+// EXPECT: 175
+// Test: Alternating bitmask branches inside a loop
+fn main() [
+    total = 0;
+    loop (i:100 = 0 .. 100) [
+        if ((i & 1) == 0) [
+            total = total + 1;
+        ] else [
+            if ((i & 2) == 0) [
+                total = total + 2;
+            ] else [
+                total = total + 3;
+            ]
+        ]
+    ]
+    ret (total & 255);
+]

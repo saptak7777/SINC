@@ -1,0 +1,12 @@
+fn test_variable_sar(val, amt) [
+    ret val >> amt;
+]
+
+fn main() [
+    z = -100;
+    t3 = test_variable_sar(z, 2);
+    if (t3 == -25) [
+        ret 10;
+    ]
+    ret 90;
+]

@@ -1,0 +1,14 @@
+// EXPECT: 164
+// Test: Unrolled inner loop with induction variable expression accumulation
+fn run_fir(step) [
+    acc = 0;
+    loop (tap:8 = 0 .. 8) [
+        term = tap * step + 3;
+        acc = acc + term;
+    ]
+    ret acc & 255;
+]
+
+fn main() [
+    ret run_fir(5);
+]

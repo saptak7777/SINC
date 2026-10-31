@@ -1,0 +1,33 @@
+// EXPECT: 53
+// REQUIRE_INSN: shlx
+// Test: Subphase 1.1 — BMI2 SHLX, SHRX, SARX variable shifts across non-RCX arbitrary registers
+fn test_variable_shl(val, amt) [
+    ret val << amt;
+]
+
+fn test_variable_shr(val, amt) [
+    ret val >> amt;
+]
+
+fn test_variable_sar(val, amt) [
+    ret val >> amt;
+]
+
+fn main() [
+    x = 5;
+    shift_l = 4;
+    t1 = test_variable_shl(x, shift_l); // 5 << 4 = 80
+
+    y = t1 + 6; // 86
+    shift_r = 1;
+    t2 = test_variable_shr(y, shift_r); // 86 >> 1 = 43
+
+    z = -100;
+    shift_sar = 2;
+    t3 = test_variable_sar(z, shift_sar);
+    if (t3 != -25) [
+        ret 99; // FAILS: >> emits shrx (logical shift) instead of sarx (arithmetic shift)
+    ]
+
+    ret t2 + 10;
+]

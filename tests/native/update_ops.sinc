@@ -1,0 +1,20 @@
+// EXPECT: 23
+// REQUIRE_INSN: neg
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn main() [
+    x = helper(3);
+    x = x + 4;
+    x = x - 1;
+    x = x & 15;
+    x = x * 2;
+    x = -x;
+    y = helper(35);
+    ret y + x;
+]

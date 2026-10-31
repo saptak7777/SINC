@@ -1,0 +1,4 @@
+// EXPECT: 42
+fn main() [
+    ret 6 * 7;
+]

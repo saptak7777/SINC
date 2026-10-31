@@ -1,0 +1,7 @@
+// COMPILE_ERROR: 17
+// Test: Loop trip count exceeding declared refinement bound compile-time rejection
+fn main() [
+    loop (i:10 = 0 .. 20) [
+    ]
+    ret 0;
+]

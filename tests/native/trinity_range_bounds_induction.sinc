@@ -1,0 +1,13 @@
+// EXPECT: 70
+// Test: Bounded loop with conditional branch partitioning
+fn main() [
+    total = 0;
+    loop (i:15 = 0 .. 15) [
+        if (i < 10) [
+            total = total + i;
+        ] else [
+            total = total + 5;
+        ]
+    ]
+    ret total;
+]

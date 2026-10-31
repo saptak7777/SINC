@@ -1,0 +1,18 @@
+// EXPECT: 42
+// Test: LICM invariant hoisting preserves loop-varying constant expressions without orphaning
+fn test_licm_varying(base) [
+    sum = 0;
+    loop (i:100 = 0 .. 10) [
+        inv = base + 10;
+        varying = i + 3;
+        sum = sum + inv + varying;
+    ]
+    if (sum == 175) [
+        ret 42;
+    ]
+    ret 0;
+]
+
+fn main() [
+    ret test_licm_varying(0);
+]

@@ -1,0 +1,19 @@
+// EXPECT: 74
+// REQUIRE_INSN: lea
+fn run_flag_free(x, y) [
+    x = x + 1;
+    y = y - 1;
+    term = (x + y) + 4;
+    acc = 0;
+    loop (i:5 = 0 .. 5) [
+        acc = acc + 1;
+    ]
+    loop (j:5 = 0 .. 5) [
+        x = x + 1;
+    ]
+    ret term + acc + x + y;
+]
+
+fn main() [
+    ret run_flag_free(10, 20);
+]

@@ -1,0 +1,23 @@
+extern fn mmap!();
+
+fn bench_linear_triad!() [
+    arena = mmap!(0, 196608, 3, 34, -1, 0);
+    a = arena;
+    b = arena + 65536;
+    c = arena + 131072;
+
+    loop (i:8192 = 0 .. 8192) [
+        a@[i * 8] = 0;
+        b@[i * 8] = i & 255;
+        c@[i * 8] = (i * 2) & 255;
+    ]
+
+    loop (step:5000 = 0 .. 5000) [
+        loop (i:8192 = 0 .. 8192) [
+            a@[i * 8] = (a@[i * 8] + b@[i * 8] + c@[i * 8] * 3) & 255;
+        ]
+    ]
+
+    checksum = a@[0] + a@[8191 * 8];
+    ret checksum & 255;
+]

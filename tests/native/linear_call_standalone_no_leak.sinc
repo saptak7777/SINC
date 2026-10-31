@@ -1,0 +1,14 @@
+// EXPECT: 20
+// Test: Standalone function call with linear argument must not leak linearity to subsequent scalar
+fn consume_it!(p) [
+    ret 0;
+]
+
+fn main!() [
+    packet:8 = 10;
+    consume_it!(packet);
+    x = 10;
+    a = x;
+    b = x;
+    ret a + b;
+]

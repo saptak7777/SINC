@@ -1,0 +1,9 @@
+fn main() [
+    sum = 0;
+    loop (outer:10000000 = 0 .. 10000000) [
+        loop (k:4 = 0 .. 4) [
+            sum = sum + k * 3 + 1;
+        ]
+    ]
+    ret sum & 255;
+]

@@ -1,0 +1,7 @@
+fn main() [
+    acc = 1;
+    loop (i:10000000 = 0 .. 10000000) [
+        acc = acc + i * 2 - i;
+    ]
+    ret acc & 255;
+]

@@ -1,0 +1,16 @@
+// EXPECT: 42
+// REQUIRE_INSN: add
+const answer = 40;
+
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn main() [
+    offset = helper(2);
+    ret answer + offset;
+]

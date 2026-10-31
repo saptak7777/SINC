@@ -1,0 +1,22 @@
+// ==========================================
+// hound/pure/death_decoder.sinc
+// HOUND: The SINC Hardware Logic Probe
+// Pure 64-Bit Death Vector Encoder / Decoder
+// Zero String Formatting, Zero Heap RAM
+// ==========================================
+
+fn death_vector_domain(vector) [
+    ret vector & DEATH_MASK_DOMAIN;
+]
+
+fn death_vector_fault(vector) [
+    ret (vector >> DEATH_SHIFT_FAULT) & DEATH_MASK_FAULT;
+]
+
+fn death_vector_offset(vector) [
+    ret vector >> DEATH_SHIFT_OFFSET;
+]
+
+fn death_vector_pack(domain, fault, offset) [
+    ret (domain & DEATH_MASK_DOMAIN) | ((fault & DEATH_MASK_FAULT) << DEATH_SHIFT_FAULT) | (offset << DEATH_SHIFT_OFFSET);
+]

@@ -1,0 +1,9 @@
+// fixture: splinter_slice_clean.sinc — idiomatic SINC slice pairs should pass cleanly
+fn main(ctx@) [
+    buf_ptr = 0;
+    buf_len = 0;
+    slice_start = 0;
+    slice_end = 0;
+    ctx@[0] = buf_ptr + buf_len + slice_start + slice_end;
+    ret ctx@[0];
+]

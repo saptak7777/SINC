@@ -1,0 +1,257 @@
+// ==========================================
+// sinc/pure/allocator.sinc
+// SINC Compiler: Linear Scan Register Allocator
+// ==========================================
+
+const ALLOC_NONE      = 65535;
+// Packed 4-bit register IDs for 10 allocatable general-purpose registers
+const ALLOC_POOL_VAL  = 1094571221793;
+
+fn alloc_event!(v, pref_phys, start, end, loc_map, phys_active_until, func, is_vec, time) [
+    st = start@[v];
+    en = end@[v];
+    if ((en >> 32) > (st >> 32)) [
+        loc_map@[v] = 64 + func@[14];
+        func@[14] = func@[14] + 1;
+        ret 0;
+    ]
+
+    found = 0;
+    if (is_vec == 1) [
+        if ((pref_phys != ALLOC_NONE) & (pref_phys > 15) & (pref_phys < 46)) [
+            if (!(phys_active_until@[pref_phys] > time)) [
+                loc_map@[v] = pref_phys;
+                phys_active_until@[pref_phys] = en & 4294967295;
+                found = 1;
+            ]
+        ]
+        loop (slot:30 = 0 .. 30) [
+            if (found == 0) [
+                phys = 16 + slot;
+                if (!(phys_active_until@[phys] > time)) [
+                    loc_map@[v] = phys;
+                    phys_active_until@[phys] = en & 4294967295;
+                    found = 1;
+                ]
+            ]
+        ]
+    ] else [
+        // Bitmask (58318) of allocatable general-purpose registers
+        if ((pref_phys < 16) & (((58318 >> pref_phys) & 1) != 0)) [
+            if (!(phys_active_until@[pref_phys] > time)) [
+                loc_map@[v] = pref_phys;
+                phys_active_until@[pref_phys] = en & 4294967295;
+                found = 1;
+            ]
+        ]
+        loop (slot:10 = 0 .. 10) [
+            if (found == 0) [
+                phys = (ALLOC_POOL_VAL >> (slot * 4)) & 15;
+                if (!(phys_active_until@[phys] > time)) [
+                    loc_map@[v] = phys;
+                    phys_active_until@[phys] = en & 4294967295;
+                    found = 1;
+                ]
+            ]
+        ]
+    ]
+
+    if (found == 0) [
+        loc_map@[v] = 64 + func@[14];
+        func@[14] = func@[14] + 1;
+    ]
+    ret 0;
+]
+
+fn run_allocation_pass!(param_cnt, tape_len, max_reg, start, end, loc_map, phys_active_until, func, tape_ptr, is_vec) [
+    loop (p:64 = 0 .. 64) [
+        phys_active_until@[p] = 0;
+    ]
+
+    loop (param_idx:100 = 0 .. param_cnt) [
+        st = start@[param_idx];
+        en = end@[param_idx];
+        if ((param_idx < 10) & ((en >> 32) == (st >> 32))) [
+            phys = (ALLOC_POOL_VAL >> (param_idx * 4)) & 15;
+            loc_map@[param_idx] = phys;
+            phys_active_until@[phys] = en & 4294967295;
+        ] else [
+            loc_map@[param_idx] = 64 + func@[14];
+            func@[14] = func@[14] + 1;
+        ]
+    ]
+
+    loop (time:10000000 = 0 .. tape_len) [
+        w0 = tape_ptr@[(time * 4)];
+        w1 = tape_ptr@[(time * 4 + 1)];
+        opcode_t = w0 & 255;
+        dst = (w0 >> 16) & 65535;
+        if ((opcode_t != 0) & (dst != ALLOC_NONE)) [
+            st = start@[dst];
+            if ((st & 4294967295) == time) [
+                dst_is_vec = is_vec@[dst];
+                coalesced = 0;
+                if (opcode_t == 4) [
+                    bin_src1 = w1 & 4294967295;
+                    if ((time + 1) < tape_len) [
+                        nxt_w0 = tape_ptr@[((time + 1) * 4)];
+                        nxt_w1 = tape_ptr@[((time + 1) * 4 + 1)];
+                        if ((nxt_w0 & 255) == 9) [
+                            nxt_src1 = nxt_w1 & 4294967295;
+                            if (nxt_src1 == dst) [
+                                nxt_dst = (nxt_w0 >> 16) & 65535;
+                                if ((nxt_dst != 65535) & (nxt_dst == bin_src1)) [
+                                    nxt_loc = loc_map@[nxt_dst];
+                                    if (nxt_loc < 64) [
+                                        if ((dst_is_vec == 1) == (nxt_loc > 15)) [
+                                            loc_map@[dst] = nxt_loc;
+                                            coalesced = 1;
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+                if (coalesced == 0) [
+                    pref_phys = ALLOC_NONE;
+                    if ((opcode_t == 4) | (opcode_t == 9)) [
+                        s1 = w1 & 4294967295;
+                        if (s1 < (max_reg + 1)) [
+                            pref_phys = loc_map@[s1];
+                        ]
+                    ]
+                    alloc_event!(dst, pref_phys, start, end, loc_map, phys_active_until, func, dst_is_vec, time);
+                ]
+            ]
+        ]
+    ]
+    ret 0;
+]
+
+fn allocate_registers!(arena, func) [
+    tape_ptr    = func@[0];
+    tape_len    = func@[1];
+    max_reg     = func@[2];
+    param_cnt   = func@[5];
+    call_table  = func@[6];
+
+    loc_map     = arena_alloc_words!(arena, max_reg + 1);
+    start       = arena_alloc_words!(arena, max_reg + 1);
+    end         = arena_alloc_words!(arena, max_reg + 1);
+    is_vec      = arena_alloc_words!(arena, max_reg + 1);
+    loop (i:10000000 = 0 .. max_reg + 1) [
+        start@[i] = ALLOC_NONE;
+        if (i < param_cnt) [
+            start@[i] = 0;
+        ]
+        end@[i] = 0;
+        loc_map@[i] = ALLOC_NONE;
+        is_vec@[i] = 0;
+    ]
+    phys_active_until = arena_alloc_words!(arena, 64);
+    func@[14] = 0;
+
+    call_count = 0;
+    loop (idx_liveness:10000000 = 0 .. tape_len) [
+        offset = idx_liveness * 4;
+        w0 = tape_ptr@[offset];
+        w1 = tape_ptr@[(offset + 1)];
+        w2 = tape_ptr@[(offset + 2)];
+
+        opcode = w0 & 255;
+        dst = (w0 >> 16) & 65535;
+        src1 = w1 & 4294967295;
+        src2 = (w1 >> 32) & 4294967295;
+        imm = w2;
+
+        if (opcode != 0) [
+            birth_cc = call_count;
+            packed_end = idx_liveness | (call_count << 32);
+            if (opcode == 3) [
+                call_count = call_count + 1;
+                birth_cc = call_count;
+            ]
+
+            if (dst != 65535) [
+                if ((start@[dst] == ALLOC_NONE) & (opcode != 7)) [
+                    start@[dst] = idx_liveness | (birth_cc << 32);
+                ]
+                end@[dst] = packed_end;
+                dst_role = (w0 >> 32) & 65535;
+                if ((dst_role & 1) != 0) [
+                    is_vec@[dst] = dst_role;
+                ]
+            ]
+
+            // Bitmask (15348) of opcodes reading src1
+            if (((15348 >> opcode) & 1) != 0) [
+                if (src1 != 4294967295) [
+                    end@[src1] = packed_end;
+                ]
+            ]
+            // Bitmask (244) of opcodes reading src2
+            if (((244 >> opcode) & 1) != 0) [
+                if ((((w0 >> 56) & 2) == 0) & (src2 != 4294967295)) [
+                    end@[src2] = packed_end;
+                ]
+            ]
+
+            if (opcode == 6) [
+                else_reg = w2 & 4294967295;
+                if (else_reg != 4294967295) [
+                    end@[else_reg] = packed_end;
+                ]
+            ]
+
+            if (opcode == 3) [
+                word_idx = w2 * 3;
+                argc     = call_table@[(word_idx + 1)] & 4294967295;
+                args_ptr = call_table@[(word_idx + 2)];
+                loop (arg_idx:100 = 0 .. argc) [
+                    arg_reg = args_ptr@[arg_idx];
+                    if (arg_reg != 4294967295) [
+                        end@[arg_reg] = packed_end;
+                    ]
+                ]
+            ]
+
+            if ((opcode == 10) | (opcode == 11)) [
+                target = 4294967295;
+                if ((opcode == 10) & (imm < idx_liveness)) [
+                    target = imm;
+                ]
+                if (opcode == 11) [
+                    then_tgt = imm & 4294967295;
+                    else_tgt = imm >> 32;
+                    if (then_tgt < idx_liveness) [
+                        target = then_tgt;
+                    ]
+                    if (else_tgt < target) [
+                        target = else_tgt;
+                    ]
+                ]
+                if (target < idx_liveness) [
+                    loop (v_loop:1000000 = 0 .. (max_reg + 1)) [
+                        st = start@[v_loop];
+                        if (st != ALLOC_NONE) [
+                            if ((st & 4294967295) < target) [
+                                if (target < (end@[v_loop] & 4294967295) + 1) [
+                                    end@[v_loop] = packed_end;
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+
+        ]
+    ]
+
+    run_allocation_pass!(param_cnt, tape_len, max_reg, start, end, loc_map, phys_active_until, func, tape_ptr, is_vec);
+
+    func@[3] = is_vec;
+    func@[11] = loc_map;
+    func@[13] = end;
+    ret 0;
+]

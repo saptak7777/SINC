@@ -1,0 +1,13 @@
+// EXPECT: 64
+// REQUIRE_INSN: sar
+// Test: Arithmetic multiply and right shift operations
+fn test_vector_evex_flow(base_val, factor) [
+    p1 = base_val * factor;
+    p2 = p1 >> 2;
+    ret p2;
+]
+
+fn main() [
+    res = test_vector_evex_flow(32, 8);
+    ret res;
+]

@@ -1,0 +1,16 @@
+// EXPECT: 9
+// REQUIRE_INSN: add
+fn helper(x) [
+    sum = 0;
+    loop (i:5 = 0 .. 1) [
+        sum = sum + x;
+    ]
+    ret sum;
+]
+
+fn main() [
+    a = helper(3);
+    b = a + 2;
+    c = a + b;
+    ret a + b + c - 7;
+]

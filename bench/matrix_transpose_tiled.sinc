@@ -1,0 +1,33 @@
+extern fn mmap!();
+
+fn bench_matrix_tiled!() [
+    arena = mmap!(0, 1048576, 3, 34, -1, 0);
+    mat_a = arena;
+    mat_b = arena + 524288;
+
+    loop (i:256 = 0 .. 256) [
+        loop (j:256 = 0 .. 256) [
+            idx = i * 256 + j;
+            mat_a@[idx * 8] = (i * 3 + j * 7) & 255;
+        ]
+    ]
+
+    loop (pass:50 = 0 .. 50) [
+        loop (ti:16 = 0 .. 16) [
+            loop (tj:16 = 0 .. 16) [
+                loop (i:16 = 0 .. 16) [
+                    loop (j:16 = 0 .. 16) [
+                        row = ti * 16 + i;
+                        col = tj * 16 + j;
+                        src_idx = row * 256 + col;
+                        dst_idx = col * 256 + row;
+                        mat_b@[dst_idx * 8] = (mat_a@[src_idx * 8] + pass) & 255;
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+    checksum = mat_b@[0] + mat_b@[255 * 8] + mat_b@[65535 * 8];
+    ret checksum & 255;
+]

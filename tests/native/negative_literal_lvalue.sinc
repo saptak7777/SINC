@@ -1,0 +1,6 @@
+// COMPILE_ERROR: 7
+// Test: Integer literal cannot be an LValue assignment target
+fn main() [
+    5 = 3;
+    ret 0;
+]

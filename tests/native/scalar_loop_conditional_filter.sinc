@@ -1,0 +1,16 @@
+// EXPECT: 36
+// Test: Loop iteration with upper-bound conditional filter
+fn compute_tail_sum(n) [
+    sum = 0;
+    loop (i:11 = 0 .. 11) [
+        if (i > 7) [
+            sum = sum + i;
+        ]
+    ]
+    ret sum;
+]
+
+fn main() [
+    tail = compute_tail_sum(11);
+    ret tail + 9;
+]
