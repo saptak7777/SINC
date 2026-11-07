@@ -179,7 +179,7 @@ fn allocate_registers!(arena, func) [
                 ]
                 end@[dst] = packed_end;
                 dst_role = (w0 >> 32) & 65535;
-                if ((dst_role & 1) != 0) [
+                if (((dst_role & 1) != 0) & (opcode != 7)) [
                     is_vec@[dst] = dst_role;
                 ]
             ]

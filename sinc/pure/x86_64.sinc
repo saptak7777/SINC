@@ -90,18 +90,9 @@ fn emit_vex3!(buffer, cursor_ptr, dst_phys, src1_phys, src2_phys, map_sel, w_bit
 ]
 
 fn emit_evex512!(buffer, cursor_ptr, dst, src1, src2, map_sel, w_bit, pp, opcode) [
-    dst_idx = dst;
-    if (dst_idx > 15) [
-        dst_idx = dst_idx - 16;
-    ]
-    src1_idx = src1;
-    if (src1_idx > 15) [
-        src1_idx = src1_idx - 16;
-    ]
-    src2_idx = src2;
-    if (src2_idx > 15) [
-        src2_idx = src2_idx - 16;
-    ]
+    dst_idx = dst - (16 * (dst > 15));
+    src1_idx = src1 - (16 * (src1 > 15));
+    src2_idx = src2 - (16 * (src2 > 15));
 
     emit_u8!(buffer, cursor_ptr, 98);
     b1 = map_sel & 7;
@@ -367,14 +358,12 @@ fn ra_emit_bin!(buffer, cursor_ptr, dst, src1, src2, aux_op, loc_map, w0, w2, iv
         if ((aux_op == 7) | (aux_op == 8)) [
             emit_evex512!(buffer, cursor_ptr, 20 - (aux_op * 2), s1, dst_loc, 1, 1, 1, 114);
             emit_u8!(buffer, cursor_ptr, w2 & 255);
-            ra_store_from_phys!(buffer, cursor_ptr, dst, dst_loc, loc_map);
             ret 0;
         ]
         evex_map = 1 + (aux_op == 2);
         // Packed EVEX opcodes: 0: 0xd4 (vpaddq), 1: 0xfb (vpsubq), 2: 0x40 (vpmullq), 4: 0xdb (vpandq), 5: 0xeb (vporq), 6: 0xef (vpxorq)
         evex_opc = (67531845268470740 >> (aux_op * 8)) & 255;
         emit_evex512!(buffer, cursor_ptr, dst_loc, s2, s1, evex_map, 1, 1, evex_opc);
-        ra_store_from_phys!(buffer, cursor_ptr, dst, dst_loc, loc_map);
         ret 0;
     ]
 
@@ -756,6 +745,10 @@ fn compile_tape!(buffer, cursor_ptr, desc, inst_offsets, fixup_table, fixup_coun
 
             if ((opcode == 2) | (opcode == 7)) [
                 dst_loc = loc_map@[dst];
+                if ((opcode == 7) & (((w0 >> 32) & 1) != 0) & ((dst_loc < 16) | (dst_loc > 47))) [
+                    ra_load_into_phys!(buffer, cursor_ptr, dst, 47, loc_map, iv);
+                    dst_loc = 47;
+                ]
                 reg_phys = dst_loc * (dst_loc < 16);
 
                 base_phys = loc_map@[src1];
@@ -773,7 +766,7 @@ fn compile_tape!(buffer, cursor_ptr, desc, inst_offsets, fixup_table, fixup_coun
                     ]
                 ]
 
-                if (((opcode == 2) | (opcode == 7)) & (dst_loc > 15) & (dst_loc < 48)) [
+                if ((dst_loc > 15) & (dst_loc < 48)) [
                     z_idx = dst_loc - 16;
                     emit_u8!(buffer, cursor_ptr, 98);
                     b1 = 1 | (128 * ((z_idx & 8) == 0)) | (64 * ((idx_phys & 8) == 0)) | (32 * ((base_phys & 8) == 0)) | (16 * ((z_idx & 16) == 0));
