@@ -1,0 +1,25 @@
+// EXPECT: 42
+// Test: Sequential FNV-1a hash recurrence rejection from additive reduction vectorizer
+extern fn mmap!();
+
+fn fnv1a!(buf) [
+    h = 14695981039346656037;
+    loop (i:64 = 0 .. 64) [
+        v = buf@[i];
+        h = (h ^ v) * 1099511628211;
+    ]
+    ret h;
+]
+
+fn main!() [
+    buf = mmap!(0, 4096, 3, 34, -1, 0);
+    loop (i:64 = 0 .. 64) [
+        buf@[i] = i + 1;
+    ]
+    res = fnv1a!(buf);
+    if (res != 16407712230993874149) [
+        ret 106;
+    ]
+    ret 42;
+]
+

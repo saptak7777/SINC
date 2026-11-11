@@ -10,7 +10,7 @@ fn check_and_hoist_operand!(tape_ptr, header_idx, s_idx, def_count, r, hoist_tar
     ]
     loop (ci:1000 = header_idx .. s_idx) [
         cw0 = tape_ptr@[(ci * 4)];
-        if (((cw0 & 255) == 1) & (((cw0 >> 16) & 65535) == r)) [
+        if (((cw0 >> 56) == 2) & (((cw0 >> 16) & 65535) == r)) [
             hoist_target@[ci] = header_idx;
             def_count@[r] = 0;
             ret 1;

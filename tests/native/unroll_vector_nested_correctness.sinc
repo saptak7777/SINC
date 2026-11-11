@@ -1,0 +1,36 @@
+// EXPECT: 42
+// REQUIRE_INSN: zmm
+
+fn test_fir8!() [
+    acc = 0;
+    loop (sample:16 = 0 .. 16) [
+        loop (tap:8 = 0 .. 8) [
+            term = tap * 5 + 3;
+            acc = acc + term;
+        ]
+    ]
+    ret acc & 255;
+]
+
+fn test_nested!() [
+    sum = 0;
+    loop (outer:16 = 0 .. 16) [
+        loop (k:4 = 0 .. 4) [
+            sum = sum + k * 3 + 1;
+        ]
+    ]
+    ret sum & 255;
+]
+
+fn main!() [
+    f = test_fir8!();
+    if (f != 64) [
+        ret 1;
+    ]
+    n = test_nested!();
+    if (n != 96) [
+        ret 2;
+    ]
+    ret 42;
+]
+

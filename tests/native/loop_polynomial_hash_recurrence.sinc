@@ -1,0 +1,25 @@
+// EXPECT: 42
+// Test: Polynomial hash recurrence with trailing addition must not be mis-vectorized
+extern fn mmap!();
+
+fn poly_hash!(buf) [
+    h = 100;
+    loop (i:64 = 0 .. 64) [
+        v = buf@[i];
+        h = (h * 31) + v;
+    ]
+    ret h;
+]
+
+fn main!() [
+    buf = mmap!(0, 4096, 3, 34, -1, 0);
+    loop (i:64 = 0 .. 64) [
+        buf@[i] = i + 1;
+    ]
+    res = poly_hash!(buf);
+    if (res != 8127774300890145924) [
+        ret 107;
+    ]
+    ret 42;
+]
+

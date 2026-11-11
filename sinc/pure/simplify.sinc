@@ -92,7 +92,7 @@ fn simp_rewrite_const!(tape_ptr, offset, dst, val, def_off) [
 ]
 
 fn simp_rewrite_update!(tape_ptr, offset, dst, src, def_off) [
-    tape_ptr@[offset]       = 9 | (dst << 16);
+    tape_ptr@[offset]       = 9 | (dst << 16) | (tape_ptr@[offset] & (65535 << 32));
     tape_ptr@[(offset + 1)] = src | (-1 << 32);
     tape_ptr@[(offset + 2)] = 0;
     if (def_off@[src] != 4294967295) [

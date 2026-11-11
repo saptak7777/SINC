@@ -1,0 +1,31 @@
+// EXPECT: 42
+// REQUIRE_INSN: zmm
+// Test: Broadcast scalar invariant function arguments in AVX-512 array stores
+extern fn mmap!();
+
+fn test_fill_dyn!(arr, val) [
+    loop (w:128 = 0 .. 128) [
+        arr@[w] = val;
+    ]
+    ret 0;
+]
+
+fn main!() [
+    arr = mmap!(0, 4096, 3, 34, -1, 0);
+    test_fill_dyn!(arr, 777777);
+    loop (i:128 = 0 .. 128) [
+        if (arr@[i] != 777777) [
+            ret 1;
+        ]
+    ]
+
+    test_fill_dyn!(arr, -42);
+    loop (j:128 = 0 .. 128) [
+        if (arr@[j] != -42) [
+            ret 2;
+        ]
+    ]
+
+    ret 42;
+]
+

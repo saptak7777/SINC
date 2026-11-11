@@ -186,7 +186,7 @@ fn ra_emit_vec_to_gpr!(buffer, cursor_ptr, gpr_dst, vec_src) [
     ret 0;
 ]
 
-fn emit_evex_init_ramp30!(buffer, cursor_ptr) [
+fn emit_evex_init_ramp30!(buffer, cursor_ptr, step) [
     loop (i:8 = 0 .. 8) [
         val = 7 - i;
         emit_u8!(buffer, cursor_ptr, 106);
@@ -204,6 +204,13 @@ fn emit_evex_init_ramp30!(buffer, cursor_ptr) [
     emit_u8!(buffer, cursor_ptr, 131);
     emit_u8!(buffer, cursor_ptr, 196);
     emit_u8!(buffer, cursor_ptr, 64);
+    if (step > 1) [
+        emit_u8!(buffer, cursor_ptr, 65);
+        emit_u8!(buffer, cursor_ptr, 186);
+        emit_u32!(buffer, cursor_ptr, step);
+        emit_evex512!(buffer, cursor_ptr, 47, 10, 0, 2, 1, 1, 124);
+        emit_evex512!(buffer, cursor_ptr, 46, 47, 46, 2, 1, 1, 64);
+    ]
     ret 0;
 ]
 
@@ -242,48 +249,41 @@ fn ra_emit_mem_operand!(buffer, cursor_ptr, reg, slot) [
 // ra_load_into_phys!
 fn ra_load_into_phys!(buffer, cursor_ptr, v, phys_dst, loc_map, iv) [
     loc = loc_map@[v];
-    if (loc < 64) [
-        src_phys = loc;
-        if (phys_dst == src_phys) [
-            ret 0;
-        ]
-        if ((phys_dst > 15) & (phys_dst < 48)) [
-            if ((src_phys > 15) & (src_phys < 48)) [
-                emit_evex512!(buffer, cursor_ptr, phys_dst, src_phys, 0, 1, 1, 1, 111);
-                ret 0;
-            ]
-            emit_evex512!(buffer, cursor_ptr, phys_dst, src_phys, 0, 2, 1, 1, 124);
-            if (iv@[v] == 3) [
-                emit_evex512!(buffer, cursor_ptr, phys_dst, 46, phys_dst, 1, 1, 1, 212);
-            ]
-            ret 0;
-        ]
-        if ((src_phys > 15) & (src_phys < 48)) [
-            ra_emit_vec_to_gpr!(buffer, cursor_ptr, phys_dst, src_phys);
-            ret 0;
-        ]
-        emit_rex_w!(buffer, cursor_ptr, phys_dst, src_phys);
-        emit_u8!(buffer, cursor_ptr, 139);
-        emit_modrm_reg!(buffer, cursor_ptr, phys_dst, src_phys);
+    if ((loc == 65535) | (phys_dst == loc)) [
         ret 0;
     ]
-    if (loc != 65535) [
+    src_phys = loc;
+    if (loc > 63) [
         slot = loc - 64;
-        if ((phys_dst > 15) & (phys_dst < 48)) [
-            emit_u8!(buffer, cursor_ptr, 76);
-            emit_u8!(buffer, cursor_ptr, 139);
-            ra_emit_mem_operand!(buffer, cursor_ptr, 10, slot);
-            emit_evex512!(buffer, cursor_ptr, phys_dst, 10, 0, 2, 1, 1, 124);
-            if (iv@[v] == 3) [
-                emit_evex512!(buffer, cursor_ptr, phys_dst, 46, phys_dst, 1, 1, 1, 212);
-            ]
+        src_phys = 10;
+        if (phys_dst < 16) [
+            src_phys = phys_dst;
+        ]
+        emit_rex_w!(buffer, cursor_ptr, src_phys, 0);
+        emit_u8!(buffer, cursor_ptr, 139);
+        ra_emit_mem_operand!(buffer, cursor_ptr, src_phys, slot);
+        if (phys_dst < 16) [
             ret 0;
         ]
-        emit_rex_w!(buffer, cursor_ptr, phys_dst, 0);
-        emit_u8!(buffer, cursor_ptr, 139);
-        ra_emit_mem_operand!(buffer, cursor_ptr, phys_dst, slot);
+    ]
+    if ((phys_dst > 15) & (phys_dst < 48)) [
+        if ((src_phys > 15) & (src_phys < 48)) [
+            emit_evex512!(buffer, cursor_ptr, phys_dst, src_phys, 0, 1, 1, 1, 111);
+            ret 0;
+        ]
+        emit_evex512!(buffer, cursor_ptr, phys_dst, src_phys, 0, 2, 1, 1, 124);
+        if (iv@[v] == 3) [
+            emit_evex512!(buffer, cursor_ptr, phys_dst, 46, phys_dst, 1, 1, 1, 212);
+        ]
         ret 0;
     ]
+    if ((src_phys > 15) & (src_phys < 48)) [
+        ra_emit_vec_to_gpr!(buffer, cursor_ptr, phys_dst, src_phys);
+        ret 0;
+    ]
+    emit_rex_w!(buffer, cursor_ptr, phys_dst, src_phys);
+    emit_u8!(buffer, cursor_ptr, 139);
+    emit_modrm_reg!(buffer, cursor_ptr, phys_dst, src_phys);
     ret 0;
 ]
 
@@ -347,6 +347,11 @@ fn ra_emit_bin!(buffer, cursor_ptr, dst, src1, src2, aux_op, loc_map, w0, w2, iv
             ]
             ra_load_into_phys!(buffer, cursor_ptr, src1, s1, loc_map, iv);
         ]
+        if ((aux_op == 7) | (aux_op == 8)) [
+            emit_evex512!(buffer, cursor_ptr, 34 - (aux_op * 4), s1, dst_loc, 1, 1, 1, 115);
+            emit_u8!(buffer, cursor_ptr, w2 & 255);
+            ret 0;
+        ]
         s2 = src2_loc;
         if (src2 == src1) [
             s2 = s1;
@@ -354,11 +359,6 @@ fn ra_emit_bin!(buffer, cursor_ptr, dst, src1, src2, aux_op, loc_map, w0, w2, iv
         if ((s2 < 16) | (s2 > 47)) [
             s2 = 47;
             ra_load_into_phys!(buffer, cursor_ptr, src2, 47, loc_map, iv);
-        ]
-        if ((aux_op == 7) | (aux_op == 8)) [
-            emit_evex512!(buffer, cursor_ptr, 20 - (aux_op * 2), s1, dst_loc, 1, 1, 1, 114);
-            emit_u8!(buffer, cursor_ptr, w2 & 255);
-            ret 0;
         ]
         evex_map = 1 + (aux_op == 2);
         // Packed EVEX opcodes: 0: 0xd4 (vpaddq), 1: 0xfb (vpsubq), 2: 0x40 (vpmullq), 4: 0xdb (vpandq), 5: 0xeb (vporq), 6: 0xef (vpxorq)
@@ -1143,7 +1143,7 @@ fn compile_function_linked!(buffer, cursor_ptr, desc, arena, call_fixups, call_f
     ]
 
     if (desc@[9] != 0) [
-        emit_evex_init_ramp30!(buffer, cursor_ptr);
+        emit_evex_init_ramp30!(buffer, cursor_ptr, desc@[9]);
     ]
 
     inst_offsets = arena_alloc_words!(arena, tape_len + 1);

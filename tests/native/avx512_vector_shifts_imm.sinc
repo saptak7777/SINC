@@ -1,0 +1,28 @@
+// EXPECT: 42
+// REQUIRE_INSN: zmm
+// Test: AVX-512 vector immediate left and right shifts on 64-bit quadwords
+extern fn mmap!();
+
+fn test_shifts!(arr) [
+    loop (i:64 = 0 .. 64) [
+        arr@[i] = (arr@[i] << 3) >> 1;
+    ]
+    ret 0;
+]
+
+fn main!() [
+    arr = mmap!(0, 4096, 3, 34, -1, 0);
+    loop (i:64 = 0 .. 64) [
+        arr@[i] = i + 1;
+    ]
+    test_shifts!(arr);
+    loop (k:64 = 0 .. 64) [
+        init_val = k + 1;
+        expected = (init_val << 3) >> 1;
+        if (arr@[k] != expected) [
+            ret 1;
+        ]
+    ]
+    ret 42;
+]
+
