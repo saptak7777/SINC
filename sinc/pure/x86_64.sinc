@@ -137,22 +137,13 @@ fn emit_evex_hsum_zmm0!(buffer, cursor_ptr) [
     emit_u8!(buffer, cursor_ptr, 193);
     emit_u8!(buffer, cursor_ptr, 1);
     // vpaddq ymm0, ymm0, ymm1
-    emit_u8!(buffer, cursor_ptr, 197);
-    emit_u8!(buffer, cursor_ptr, 253);
-    emit_u8!(buffer, cursor_ptr, 212);
-    emit_u8!(buffer, cursor_ptr, 193);
+    emit_u32!(buffer, cursor_ptr, 3251961285);
     // vextracti128 xmm1, ymm0, 1
-    emit_u8!(buffer, cursor_ptr, 196);
-    emit_u8!(buffer, cursor_ptr, 227);
-    emit_u8!(buffer, cursor_ptr, 125);
-    emit_u8!(buffer, cursor_ptr, 57);
+    emit_u32!(buffer, cursor_ptr, 964551620);
     emit_u8!(buffer, cursor_ptr, 193);
     emit_u8!(buffer, cursor_ptr, 1);
     // vpaddq xmm0, xmm0, xmm1
-    emit_u8!(buffer, cursor_ptr, 197);
-    emit_u8!(buffer, cursor_ptr, 249);
-    emit_u8!(buffer, cursor_ptr, 212);
-    emit_u8!(buffer, cursor_ptr, 193);
+    emit_u32!(buffer, cursor_ptr, 3251960261);
     // vpextrq r10, xmm0, 1  (use dedicated scratch %r10, never %rcx which is allocatable GPR 1)
     emit_u8!(buffer, cursor_ptr, 196);
     emit_u8!(buffer, cursor_ptr, 195);
@@ -456,17 +447,25 @@ fn ra_emit_bin!(buffer, cursor_ptr, dst, src1, src2, aux_op, loc_map, w0, w2, iv
         ret 0;
     ]
 
-    // Stage 4c: Native 3-Address IMUL (target = src1 * imm32)
-    if ((aux_op == 2) & (use_imm == 1)) [
+    // Stage 4c: Native 3-Address Immediate (IMUL imm32 & MOVZX 255 / 65535)
+    is_zext = (aux_op == 4) & ((imm == 255) | (imm == 65535));
+    if ((use_imm == 1) & ((aux_op == 2) | (is_zext == 1))) [
         s1 = src1_loc;
         if (src1_loc > 15) [
             ra_load_into_phys!(buffer, cursor_ptr, src1, target_phys, loc_map, iv);
             s1 = target_phys;
         ]
         emit_rex_w!(buffer, cursor_ptr, target_phys, s1);
-        emit_u8!(buffer, cursor_ptr, 105);
+        if (is_zext == 1) [
+            emit_u8!(buffer, cursor_ptr, 15);
+            emit_u8!(buffer, cursor_ptr, 182 + (imm == 65535));
+        ] else [
+            emit_u8!(buffer, cursor_ptr, 105);
+        ]
         emit_modrm_reg!(buffer, cursor_ptr, target_phys, s1);
-        emit_u32!(buffer, cursor_ptr, imm);
+        if (is_zext == 0) [
+            emit_u32!(buffer, cursor_ptr, imm);
+        ]
         ra_store_from_phys!(buffer, cursor_ptr, dst, target_phys, loc_map);
         ret 0;
     ]
@@ -562,10 +561,7 @@ fn ra_emit_cmp!(buffer, cursor_ptr, dst, src1, src2, cmp_op, loc_map, w0, w2, is
         emit_u8!(buffer, cursor_ptr, 15);
         emit_u8!(buffer, cursor_ptr, setcc_byte);
         emit_u8!(buffer, cursor_ptr, 192);
-        emit_u8!(buffer, cursor_ptr, 72);
-        emit_u8!(buffer, cursor_ptr, 15);
-        emit_u8!(buffer, cursor_ptr, 182);
-        emit_u8!(buffer, cursor_ptr, 192);
+        emit_u32!(buffer, cursor_ptr, 3233156936);
         ra_store_from_phys!(buffer, cursor_ptr, dst, 0, loc_map);
     ]
     ret 0;
@@ -576,10 +572,7 @@ fn ra_emit_epilogue!(buffer, cursor_ptr, ret_reg, loc_map, iv) [
     if (ret_reg != 4294967295) [
         ra_load_into_phys!(buffer, cursor_ptr, ret_reg, 0, loc_map, iv);
     ]
-    emit_u8!(buffer, cursor_ptr, 72);
-    emit_u8!(buffer, cursor_ptr, 137);
-    emit_u8!(buffer, cursor_ptr, 236);
-    emit_u8!(buffer, cursor_ptr, 93);
+    emit_u32!(buffer, cursor_ptr, 1575782728);
     emit_u8!(buffer, cursor_ptr, 195);
     ret 0;
 ]

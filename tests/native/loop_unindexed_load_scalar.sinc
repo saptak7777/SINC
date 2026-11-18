@@ -1,0 +1,17 @@
+// EXPECT: 42
+// Test: Unindexed scalar loads inside loops must not be stamped for vectorization
+extern fn mmap!();
+
+fn main!() [
+    buf = mmap!(0, 4096, 3, 34, -1, 0);
+    buf@[0] = 42;
+    sum = 0;
+    loop (i:1000 = 0 .. 1000) [
+        v = buf@;
+        sum = sum + v;
+    ]
+    if (sum == 42000) [
+        ret 42;
+    ]
+    ret 0;
+]

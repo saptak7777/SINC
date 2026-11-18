@@ -60,7 +60,7 @@ fn ir_vectorizer!(func_desc, tape_ptr, header_idx, latch_idx, hoist_target, max_
                     defined_in_body@[b_dst] = b_dst + 1;
                 ]
                 if ((b_op == 2) | (b_op == 7)) [
-                    if (((s2 != 4294967295) & (s2 != loop_var)) | ((b_sc != 0) & (b_sc != 8))) [
+                    if ((s2 != loop_var) | (b_sc != 8)) [
                         has_branch = 1;
                     ]
                     if (b_op == 7) [

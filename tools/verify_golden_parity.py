@@ -42,11 +42,12 @@ def build_golden_baseline(sinc_bin, packager_bin, packager_o):
     os.makedirs(bug_dir, exist_ok=True)
     os.makedirs(ffi_dir, exist_ok=True)
 
-    # 1. Compiler Seed & Self-Hosting
+    # 1. Compiler Seed & Tree-Build
     print("[1/5] Locking Seed Compiler Binaries (sinc.elf, sinc.safe, packager_bin, packager_o)...")
-    subprocess.run([os.path.join(ROOT_DIR, "build.sh"), "--assemble-only", "/tmp/compiler_assembled.sinc"], check=True)
+    subprocess.run([os.path.join(ROOT_DIR, "build.sh")], check=True)
+    built_safe = os.path.join(ROOT_DIR, "scratch", "build", "sinc_compiler.safe")
     seed_safe = os.path.join(seed_dir, "sinc.safe")
-    subprocess.run([sinc_bin, "/tmp/compiler_assembled.sinc", seed_safe], check=True)
+    shutil.copy2(built_safe, seed_safe)
     shutil.copy2(sinc_bin, os.path.join(seed_dir, "sinc.elf"))
     shutil.copy2(packager_bin, os.path.join(seed_dir, "packager_bin"))
     shutil.copy2(packager_o, os.path.join(seed_dir, "packager_o"))
@@ -73,8 +74,8 @@ def build_golden_baseline(sinc_bin, packager_bin, packager_o):
             "elf_sha": sha256_file(elf_out),
         }
 
-    # 3. 103 Native Tests
-    print("[3/5] Compiling and Packaging all 103 Native Tests...")
+    # 3. Native Tests
+    print(f"[3/5] Compiling and Packaging all Native Tests...")
     native_meta = {}
     all_files = sorted(glob.glob(os.path.join(ROOT_DIR, "tests", "native", "*.sinc")))
     native_files = []
@@ -447,24 +448,28 @@ def audit_golden_baseline(sinc_bin, packager_bin, packager_o):
     work_dir = tempfile.mkdtemp(prefix="sinc_verify_")
 
     try:
-        # Tier 1: Compiler Self-Hosting Determinism
-        print("\n[TIER 1] Compiler Self-Hosting Bitwise Determinism")
+        # Tier 1: Compiler Tree-Build Determinism
+        print("\n[TIER 1] Compiler Tree-Build Bitwise Determinism")
         print("-" * 105)
-        assembled_src = os.path.join(work_dir, "compiler_assembled.sinc")
-        self_safe = os.path.join(work_dir, "sinc_self.safe")
-        subprocess.run([os.path.join(ROOT_DIR, "build.sh"), "--assemble-only", assembled_src], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        res_self = subprocess.run([sinc_bin, assembled_src, self_safe], capture_output=True)
-
-        if res_self.returncode != 0:
-            print(f"  Self-hosting compilation failed (exit code {res_self.returncode})")
-            record("Self-Hosting", "Compiler", False, f"Compile failed exit {res_self.returncode}")
+        build_res = subprocess.run([os.path.join(ROOT_DIR, "build.sh")], capture_output=True, text=True)
+        if build_res.returncode != 0:
+            print(f"  Tree-build compilation failed (exit code {build_res.returncode})")
+            record("Tree-Build", "Compiler", False, f"Build failed exit {build_res.returncode}")
         else:
-            curr_self_sha = sha256_file(self_safe)
-            base_self_sha = master["seed_compiler"]["safe_sha"]
-            match_self = (curr_self_sha == base_self_sha)
-            record("Self-Hosting Bytecode", "Compiler", match_self, f"{curr_self_sha[:10]} vs {base_self_sha[:10]}")
-            status = "MATCH" if match_self else "DIFF"
-            print(f"  {'Self-Hosted sinc.safe':<32} | {status:<8} | SHA: {curr_self_sha[:12]}... (Base: {base_self_sha[:12]}...)")
+            built_safe = os.path.join(ROOT_DIR, "scratch", "build", "sinc_compiler.safe")
+            curr_safe_sha = sha256_file(built_safe)
+            base_safe_sha = master["seed_compiler"]["safe_sha"]
+            match_safe = (curr_safe_sha == base_safe_sha)
+            record("Tree-Build Bytecode", "Compiler", match_safe, f"{curr_safe_sha[:10]} vs {base_safe_sha[:10]}")
+            status_safe = "MATCH" if match_safe else "DIFF"
+            print(f"  {'Tree-Built sinc_compiler.safe':<32} | {status_safe:<8} | SHA: {curr_safe_sha[:12]}... (Base: {base_safe_sha[:12]}...)")
+
+            curr_elf_sha = sha256_file(sinc_bin)
+            base_elf_sha = master["seed_compiler"]["elf_sha"]
+            match_elf = (curr_elf_sha == base_elf_sha)
+            record("Tree-Built ELF Binary", "Compiler", match_elf, f"{curr_elf_sha[:10]} vs {base_elf_sha[:10]}")
+            status_elf = "MATCH" if match_elf else "DIFF"
+            print(f"  {'Tree-Built sinc.elf':<32} | {status_elf:<8} | SHA: {curr_elf_sha[:12]}... (Base: {base_elf_sha[:12]}...)")
 
         # Tier 2: 24 Full Optimization Benchmarks
         print("\n[TIER 2] 24 Optimization Benchmarks (Bitwise Safe/ELF & Exit Code Parity)")
@@ -539,10 +544,12 @@ def audit_golden_baseline(sinc_bin, packager_bin, packager_o):
         if bench_changed_list:
             print(f"  Changed Benchmarks: {bench_changed_list}")
 
-        # Tier 3: 103 Native Test Suite
-        print("\n[TIER 3] 103 Native Test Suite (92 Execution + 11 Negative Rejections)")
-        print("-" * 105)
+        # Tier 3: Native Test Suite
         native_data = master.get("native_tests", {})
+        total_pos = sum(1 for v in native_data.values() if v.get("type") == "positive_execution")
+        total_neg = sum(1 for v in native_data.values() if v.get("type") == "negative_rejection")
+        print(f"\n[TIER 3] {len(native_data)} Native Test Suite ({total_pos} Execution + {total_neg} Negative Rejections)")
+        print("-" * 105)
         t_safe_matches = 0
         t_elf_matches = 0
         t_exit_matches = 0
@@ -586,8 +593,8 @@ def audit_golden_baseline(sinc_bin, packager_bin, packager_o):
                 record(f"{tname} elf_sha", "Native Tests", elf_match, f"{elf_sha[:8]} vs {base_info['elf_sha'][:8]}")
                 record(f"{tname} exit", "Native Tests", exit_match, f"exit {exit_code} vs {base_info['exit_code']}")
 
-        print(f"  Positive Execution Tests: Safe={t_safe_matches}/92, ELF={t_elf_matches}/92, Exit={t_exit_matches}/92")
-        print(f"  Negative Rejection Tests: Rejection Exit Codes={t_rej_matches}/11")
+        print(f"  Positive Execution Tests: Safe={t_safe_matches}/{total_pos}, ELF={t_elf_matches}/{total_pos}, Exit={t_exit_matches}/{total_pos}")
+        print(f"  Negative Rejection Tests: Rejection Exit Codes={t_rej_matches}/{total_neg}")
 
         # Tier 4: 4 Bug Regression Suite
         print("\n[TIER 4] 4 Bug & Vulnerability Regressions")
@@ -731,8 +738,9 @@ def audit_golden_baseline(sinc_bin, packager_bin, packager_o):
     print(f"  Total Invariants Verified: {passed_checks}/{total_checks}")
 
     if len(drifts) == 0:
+        total_native_count = len(master.get("native_tests", {}))
         print("\nSTATUS: 100% BITWISE & FUNCTIONAL PARITY WITH GOLDEN BASELINE!")
-        print("ALL 5 TIERS (COMPILER SEED, 24 BENCHES, 103 TESTS, 4 BUGS, 5 FFI) VERIFIED ZERO REGRESSIONS.")
+        print(f"ALL 5 TIERS (COMPILER SEED, 24 BENCHES, {total_native_count} TESTS, 4 BUGS, 5 FFI) VERIFIED ZERO REGRESSIONS.")
         print("=" * 105)
         return 0
     else:

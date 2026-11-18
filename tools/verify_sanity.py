@@ -49,11 +49,13 @@ def check(name, group, ok, detail=""):
 
 try:
     # --------------------------------------------------------------------------
-    # Tier 1: 103 Native Test Suite
+    # Tier 1: Native Test Suite
     # --------------------------------------------------------------------------
-    print("\n[SECTION 1] 103 Native Tests (92 Positive Execution + 11 Negative Rejection)")
-    print("-" * 105)
     native_files = sorted(glob.glob(os.path.join(ROOT_DIR, "tests", "native", "*.sinc")))
+    total_pos = sum(1 for tf in native_files if any(l.startswith("// EXPECT:") for l in open(tf, errors="ignore")))
+    total_neg = sum(1 for tf in native_files if any(l.startswith("// COMPILE_ERROR:") for l in open(tf, errors="ignore")))
+    print(f"\n[SECTION 1] {len(native_files)} Native Tests ({total_pos} Positive Execution + {total_neg} Negative Rejection)")
+    print("-" * 105)
     pos_pass = 0
     neg_pass = 0
 
@@ -96,8 +98,6 @@ try:
             if ok: pos_pass += 1
             check(tname, "Native Execution", ok, f"exit {exit_code}, expected {expect_exit}")
 
-    total_pos = sum(1 for tf in native_files if any(l.startswith("// EXPECT:") for l in open(tf, errors="ignore")))
-    total_neg = sum(1 for tf in native_files if any(l.startswith("// COMPILE_ERROR:") for l in open(tf, errors="ignore")))
     print(f"  Positive Execution Tests : {pos_pass}/{total_pos} PASSED")
     print(f"  Negative Rejection Tests : {neg_pass}/{total_neg} PASSED (Syntax/Purity Rejections Verified)")
 
