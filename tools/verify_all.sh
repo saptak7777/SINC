@@ -25,7 +25,13 @@ case "${1:-}" in
         echo "=== STEP 1: FUNCTIONAL SANITY & BEHAVIOR SUITE ==="
         python3 "$ROOT_DIR/tools/verify_sanity.py" "$SINC" "$PACKAGER"
         echo ""
-        echo "=== STEP 2: GOLDEN BASELINE BITWISE AUDIT ==="
+        echo "=== STEP 2: NATIVE INSTRUCTION & DISASSEMBLY ASSERTIONS ==="
+        bash "$ROOT_DIR/tests/run_native.sh" "$SINC" "$PACKAGER"
+        echo ""
+        echo "=== STEP 3: SOVEREIGN STAFF FIXED-POINT & INTEGRATION GATE ==="
+        bash "$ROOT_DIR/tests/staff/test_staff.sh"
+        echo ""
+        echo "=== STEP 4: GOLDEN BASELINE BITWISE AUDIT ==="
         exec python3 "$ROOT_DIR/tools/verify_golden_parity.py" "$SINC" "$PACKAGER" "${@:2}"
         ;;
     *)

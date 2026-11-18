@@ -135,7 +135,7 @@ fn parse_expr!(min_bp, ctx, bindings, inst_count) [
                     parser_advance!(ctx);
                     cont_tape@[(sp + 2)] = ctx@[18];
                     cont_tape@[(sp + 3)] = inst_count;
-                    push_w0              = 3 | (ctx@[17] << 16);
+                    push_w0              = 3 | (ctx@[17] << 16) | (8 << 24);
                     next_bp              = 16;
                 ] else [
                     dst        = fresh_val!(ctx@[9]);
@@ -188,7 +188,6 @@ fn parse_expr!(min_bp, ctx, bindings, inst_count) [
 
                         if (out_token.TOK_TYPE == 20) [
                             parser_advance!(ctx);
-                            aux = 8;
                             if (out_token.TOK_TYPE == 10) [
                                 aux = out_token.TOK_VAL;
                                 parser_advance!(ctx);

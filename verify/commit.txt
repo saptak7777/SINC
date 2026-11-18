@@ -1,3 +1,11 @@
-Commit: 40c041791e4ec91e15decc47b573917443676e7f
-Short: 40c0417
-Message: feat(release): 3-address backend optimizations, vectorizer load guard, and golden tree-build baseline
+Commit: 1dc281b9b177d4750d895d51b7e8f96b303cb4df
+Short: 1dc281b
+Message: fix(parser): canonicalize QWORD scale factor in Pratt parser, promote converged staff, and unify 4 release gates
+
+- Pack default scale 8 directly into byte 3 of push_w0 when parsing @[ in parser_pratt.sinc
+- Delete redundant aux = 8 assignment in parser_pratt.sinc (-1 Net LOC)
+- Preserves clean vectorizer invariant check (s2 != loop_var | b_sc != 8) in vectorizer.sinc
+- Restores AVX-512 vectorization for default-indexed loops (arr@[w]) in avx512_store_dynamic_scalar and avx512_vector_shifts_imm (134/134 native tests passed)
+- Bootstrap and promote converged Stage 3 binary into bin/staff (15/15 staff integration tests passed)
+- Wire native disassembly assertions (run_native.sh) and staff fixed-point convergence (test_staff.sh) into tools/verify_all.sh --all with set -euo pipefail aborts
+- Synchronize golden baseline in verify/ (439/439 invariants verified, 100% bitwise parity)

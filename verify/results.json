@@ -1,10 +1,10 @@
 {
-  "commit": "40c041791e4ec91e15decc47b573917443676e7f",
-  "commit_short": "40c0417",
-  "commit_message": "feat(release): 3-address backend optimizations, vectorizer load guard, and golden tree-build baseline",
+  "commit": "1dc281b9b177d4750d895d51b7e8f96b303cb4df",
+  "commit_short": "1dc281b",
+  "commit_message": "fix(parser): canonicalize QWORD scale factor in Pratt parser, promote converged staff, and unify 4 release gates\n\n- Pack default scale 8 directly into byte 3 of push_w0 when parsing @[ in parser_pratt.sinc\n- Delete redundant aux = 8 assignment in parser_pratt.sinc (-1 Net LOC)\n- Preserves clean vectorizer invariant check (s2 != loop_var | b_sc != 8) in vectorizer.sinc\n- Restores AVX-512 vectorization for default-indexed loops (arr@[w]) in avx512_store_dynamic_scalar and avx512_vector_shifts_imm (134/134 native tests passed)\n- Bootstrap and promote converged Stage 3 binary into bin/staff (15/15 staff integration tests passed)\n- Wire native disassembly assertions (run_native.sh) and staff fixed-point convergence (test_staff.sh) into tools/verify_all.sh --all with set -euo pipefail aborts\n- Synchronize golden baseline in verify/ (439/439 invariants verified, 100% bitwise parity)",
   "seed_compiler": {
-    "elf_sha": "162d871ab4ed6982fe5764fa71b7c76f506ed766cc695fe229adaa5cb8c652ea",
-    "safe_sha": "d3041e9ab61cb85fcffeb37c7c0500bc42dd5b403a84763ee0be91879d55b7d1",
+    "elf_sha": "3916b17a982ccda96d4c9d041b8d71ae8af2365e41d3080445a2a0fb48e8a0d1",
+    "safe_sha": "b69e422aa88f1448ed122575bec45d74a397fbf12582cae72f894e8af4cc82d6",
     "packager_bin_sha": "5def54e051aeb06ed79d78d5f6b39c54cb5b7a1688f5e1b6f5e9ae0a453488ce",
     "packager_o_sha": "5d03a7a59ea93cb5ff67d57956ffae7d2b88a7c001b7d66d246df05ec9ec3a5c"
   },
@@ -214,18 +214,18 @@
     "avx512_store_dynamic_scalar": {
       "type": "positive_execution",
       "exit_code": 42,
-      "safe_sz": 352,
-      "safe_sha": "fc13030da39d74d9731c8a7adb4b46b9f8200be048dc262f62d39334091e801b",
-      "elf_sz": 768,
-      "elf_sha": "11aaa1b7fe30419e8ff9f9ab836ab3e826e0e0f15c19d6057dac56115a31f7ad"
+      "safe_sz": 388,
+      "safe_sha": "49df4cda3902606009525adfdb5b84f0d744c0efa748efa9eee5caee4a9fc98b",
+      "elf_sz": 804,
+      "elf_sha": "46f52f3ea1f55b9f6837b4a170ced6fac2cc50d3e8dc9723d31920c0caf86666"
     },
     "avx512_vector_shifts_imm": {
       "type": "positive_execution",
       "exit_code": 42,
-      "safe_sz": 307,
-      "safe_sha": "e6219a4bcd470eefaea9bbcd3a59170948ee6dc73fc7e854ab043b96b906dfda",
-      "elf_sz": 723,
-      "elf_sha": "23d1aac0310bcd89f8eb42ff62d0a2eecad37f55e862465a1376452a6cc5d6be"
+      "safe_sz": 406,
+      "safe_sha": "c9a659e2dc4d5cd697b7a5f1d64954ff2b3361472cf720c37fb1c3b6544abe38",
+      "elf_sz": 822,
+      "elf_sha": "762055d1804f018fabcbe1b1b218ed4f6b342f3f2cfa90def813ad4cbf5f8c3f"
     },
     "bitwise_and_shifts": {
       "type": "positive_execution",
@@ -614,10 +614,10 @@
     "loop_fnv1a_hash_recurrence": {
       "type": "positive_execution",
       "exit_code": 42,
-      "safe_sz": 264,
-      "safe_sha": "a070e08fdf63dc6feaad5bcb7053caad94d193d2ae0ac11ce8f86873d7653a2f",
-      "elf_sz": 680,
-      "elf_sha": "bc407b3564ece9894f7bba5c9a6855f2545605cd38574e555baaacf97a6b074e"
+      "safe_sz": 324,
+      "safe_sha": "8bbc71c55af77c085afc2b96067b0fc3eb64be5bfe4e508dbf6132cd5625ea9e",
+      "elf_sz": 740,
+      "elf_sha": "b03172938e8ec7a89f622317f8cc9637698cbabf4c5946cd580dd0d6170b5481"
     },
     "loop_multi_accumulator_reduction": {
       "type": "positive_execution",
@@ -646,10 +646,10 @@
     "loop_polynomial_hash_recurrence": {
       "type": "positive_execution",
       "exit_code": 42,
-      "safe_sz": 252,
-      "safe_sha": "e1cd297d8429358dd777bde8a7588ef069312211e019aedd67580af829524a8c",
-      "elf_sz": 668,
-      "elf_sha": "82389cf32dce1e9a224c4e56ec3b0c4808f549fe2f09de585040e7a96e099cd6"
+      "safe_sz": 312,
+      "safe_sha": "889c02263abef9cc40451e418addd5c89c032958e6fc3a31ca7e0b790d855959",
+      "elf_sz": 728,
+      "elf_sha": "5181ebee97e16948663720d3efb9f6aba13d870d8e5745e2c88c562bdf14c3eb"
     },
     "loop_unindexed_load_scalar": {
       "type": "positive_execution",
