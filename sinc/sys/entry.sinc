@@ -54,7 +54,7 @@ fn compile_core!(src_buf, src_len, arena) [
     if (fc > 1024) [
         sys_exit!(11);
     ]
-    f_by_sym = prog_desc@[8];
+    f_by_sym = prog_desc@[7];
     loop (i = 0 .. fc) [
         f_desc = ft@[i];
         if (f_desc@[7] > 0) [
@@ -62,6 +62,7 @@ fn compile_core!(src_buf, src_len, arena) [
         ]
     ]
 
+    total_insts = 0;
     loop (i = 0 .. fc) [
         f_desc = ft@[i];
         _ = ir_unroll!(arena, f_desc, global_scratch_tape);
@@ -69,11 +70,12 @@ fn compile_core!(src_buf, src_len, arena) [
         ir_simplify!(f_desc, global_scratch_tape);
         ir_erls!(f_desc, global_scratch_tape);
         ir_dce!(f_desc, global_scratch_tape);
+        total_insts = total_insts + f_desc@[1];
     ]
     code_buffer = arena_alloc_words!(arena, 5000000);
     cursor_ptr = arena_alloc_words!(arena, 1);
 
-    compile_program!(code_buffer, cursor_ptr, prog_desc, arena);
+    compile_program!(code_buffer, cursor_ptr, prog_desc, arena, total_insts);
     code_len = cursor_ptr@[0];
     if (code_len > 40000000) [
         sys_exit!(12);

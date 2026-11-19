@@ -1171,12 +1171,11 @@ fn patch_call_fixups!(buffer, func_by_sym, call_fixups, total_fixups) [
     ret 0;
 ]
 
-fn compile_program!(buffer, cursor_ptr, prog_desc, arena) [
+fn compile_program!(buffer, cursor_ptr, prog_desc, arena, total_insts) [
     func_table = prog_desc@[0];
     func_count = prog_desc@[1];
-    call_count = prog_desc@[7];
-    func_by_sym = prog_desc@[8];
-    call_fixups = arena_alloc_words!(arena, call_count * 2);
+    func_by_sym = prog_desc@[7];
+    call_fixups = arena_alloc_words!(arena, total_insts * 2);
     call_fixup_count = arena_alloc_words!(arena, 1);
     call_fixup_count@[0] = 0;
 

@@ -1,10 +1,10 @@
 {
-  "commit": "1dc281b9b177d4750d895d51b7e8f96b303cb4df",
-  "commit_short": "1dc281b",
-  "commit_message": "fix(parser): canonicalize QWORD scale factor in Pratt parser, promote converged staff, and unify 4 release gates\n\n- Pack default scale 8 directly into byte 3 of push_w0 when parsing @[ in parser_pratt.sinc\n- Delete redundant aux = 8 assignment in parser_pratt.sinc (-1 Net LOC)\n- Preserves clean vectorizer invariant check (s2 != loop_var | b_sc != 8) in vectorizer.sinc\n- Restores AVX-512 vectorization for default-indexed loops (arr@[w]) in avx512_store_dynamic_scalar and avx512_vector_shifts_imm (134/134 native tests passed)\n- Bootstrap and promote converged Stage 3 binary into bin/staff (15/15 staff integration tests passed)\n- Wire native disassembly assertions (run_native.sh) and staff fixed-point convergence (test_staff.sh) into tools/verify_all.sh --all with set -euo pipefail aborts\n- Synchronize golden baseline in verify/ (439/439 invariants verified, 100% bitwise parity)",
+  "commit": "bef2202efb1fd571f84aa4bb188e1d0c7146dcc8",
+  "commit_short": "bef2202",
+  "commit_message": "fix(backend): size call_fixups from post-opt tape length and pass via register\n\n- Replace parse-time call count with exact post-optimization total_insts structural bound\n- Re-use warm post-optimization pipeline loop in sinc/sys/entry.sinc to accumulate total_insts\n- Pass total_insts directly via Spine ABI register RDI into compile_program!\n- Eliminate PROG_CALL_COUNT from prog_desc, shift PROG_FUNC_BY_SYM to slot 7, and shrink descriptor to 8 words\n- Delete call_count = prog_desc@[7] in sinc/pure/x86_64.sinc (-1 Net LOC on sinc/pure/)\n- Fixes buffer overrun in call_fixups when ir_unroll! expands function calls in loop bodies\n- Bootstrap and promote converged Stage-3 binary to bin/staff (15/15 integration tests passed)\n- Golden parity audit verified across all 439 checks (24 benchmarks bitwise identical)",
   "seed_compiler": {
-    "elf_sha": "3916b17a982ccda96d4c9d041b8d71ae8af2365e41d3080445a2a0fb48e8a0d1",
-    "safe_sha": "b69e422aa88f1448ed122575bec45d74a397fbf12582cae72f894e8af4cc82d6",
+    "elf_sha": "902d5576fd5162fa6047171f499f6573cc1afafd5302d5b3ad7836c2bbf73269",
+    "safe_sha": "e6a4c1f0eb245b22679bcda3b945e48aee6dfde5c76afb336ebd3f4117e24c65",
     "packager_bin_sha": "5def54e051aeb06ed79d78d5f6b39c54cb5b7a1688f5e1b6f5e9ae0a453488ce",
     "packager_o_sha": "5d03a7a59ea93cb5ff67d57956ffae7d2b88a7c001b7d66d246df05ec9ec3a5c"
   },

@@ -15,8 +15,7 @@ const PROG_EXTERN_TABLE = 3;
 const PROG_SYM_TABLE    = 4;
 const PROG_SYM_CAP      = 5;
 const PROG_CALL_TABLE   = 6;
-const PROG_CALL_COUNT   = 7;
-const PROG_FUNC_BY_SYM  = 8;
+const PROG_FUNC_BY_SYM  = 7;
 
 // parser_advance! — Token Ingestion & Bound Resolution
 fn parser_advance!(ctx) [
@@ -483,7 +482,7 @@ fn parse_function!(ctx) [
 // ---------------------------------------------------------------------------
 fn parse_program!(ctx) [
     arena       = ctx@[0];
-    prog_desc   = arena_alloc_words!(arena, 9);
+    prog_desc   = arena_alloc_words!(arena, 8);
     func_table  = arena_alloc_words!(arena, 1024);
     func_by_sym = arena_alloc_words!(arena, ctx@[5]);
     if ((prog_desc == 0) | (func_table == 0) | (func_by_sym == 0)) [
@@ -499,7 +498,6 @@ fn parse_program!(ctx) [
         tok_type = out_token.TOK_TYPE;
 
         if (tok_type == 0) [
-            call_count_ptr                = ctx@[13];
             prog_desc@[PROG_FUNC_TABLE]   = func_table;
             prog_desc@[PROG_FUNC_COUNT]   = func_count;
             prog_desc@[PROG_CONST_TABLE]  = ctx@[10];
@@ -507,7 +505,6 @@ fn parse_program!(ctx) [
             prog_desc@[PROG_SYM_TABLE]    = ctx@[4];
             prog_desc@[PROG_SYM_CAP]      = ctx@[5];
             prog_desc@[PROG_CALL_TABLE]   = ctx@[12];
-            prog_desc@[PROG_CALL_COUNT]   = call_count_ptr@[0];
             prog_desc@[PROG_FUNC_BY_SYM]  = func_by_sym;
             ret prog_desc;
         ]
