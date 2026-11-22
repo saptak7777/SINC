@@ -1,0 +1,78 @@
+// ==========================================
+// steel/sys/thunk_emitter.sinc
+// S.T.E.E.L. Sovereign Reverse Thunk Table Generator
+// ==========================================
+
+fn emit_thunk3!(thunks, base, sys_nr) [
+    thunks@[base]       = 72 | (137 << 8) | (207 << 16) | (72 << 24) | (137 << 32) | (214 << 40) | (72 << 48) | (137 << 56);
+    thunks@[(base + 1)] = 218 | (184 << 8) | (sys_nr << 16) | (15 << 48) | (5 << 56);
+    thunks@[(base + 2)] = 195;
+    ret 0;
+]
+
+fn emit_reverse_thunk_table!(buf, base_word) [
+    loop (t_idx:56 = 0 .. 56) [
+        buf@[(base_word + t_idx)] = 0;
+    ]
+
+    // Thunk 13: sys_wait4 (ext_idx 13, offset -448) [Words base + 0..3]
+    // movq %rcx, %rdi / movq %rdx, %rsi / movq %rbx, %rdx / xorq %r10, %r10 / movl $61, %eax / syscall / ret
+    buf@[base_word]       = -8554351607069832888;
+    buf@[(base_word + 1)] = 67864009723354;
+    buf@[(base_word + 2)] = 3271888640;
+
+    // Thunk 12: sys_fork (ext_idx 12, offset -416) [Words base + 4..7]
+    emit_thunk3!(buf, base_word + 4, 57);
+
+    // Thunk 11: sys_call_entry (ext_idx 11, offset -384) [Words base + 8..11]
+    // pushq %r12 / movq %rcx, %rax / movq %rdx, %rcx / movq %rbx, %rdx / movq %rbx, %r12 / callq *%rax / popq %r12 / ret
+    buf@[(base_word + 8)]  = 65 | (84 << 8) | (72 << 16) | (137 << 24) | (200 << 32) | (72 << 40) | (137 << 48) | (209 << 56);
+    buf@[(base_word + 9)]  = 72 | (137 << 8) | (218 << 16) | (73 << 24) | (137 << 32) | (220 << 40) | (255 << 48) | (208 << 56);
+    buf@[(base_word + 10)] = 65 | (92 << 8) | (195 << 16);
+
+    // Thunk 10: sys_munmap (ext_idx 10, offset -352) [Words base + 12..15]
+    emit_thunk3!(buf, base_word + 12, 11);
+
+    // Thunk 9: sys_mprotect (ext_idx 9, offset -320) [Words base + 16..19]
+    emit_thunk3!(buf, base_word + 16, 10);
+
+    // Thunk 8: sys_ioctl (ext_idx 8, offset -288) [Words base + 20..23]
+    emit_thunk3!(buf, base_word + 20, 16);
+
+    // Thunk 7: get_argv (ext_idx 7, offset -256) [Words base + 24..27]
+    // movq %r12, %rax / ret
+    buf@[(base_word + 24)] = 76 | (137 << 8) | (224 << 16) | (195 << 24);
+
+    // Thunk 6: sys_getdents64 (ext_idx 6, offset -224) [Words base + 28..31]
+    emit_thunk3!(buf, base_word + 28, 217);
+
+    // Thunk 5: sys_exit (ext_idx 5, offset -192) [Words base + 32..35]
+    // movq %rcx, %rdi / movl $60, %eax / syscall
+    buf@[(base_word + 32)] = 72 | (137 << 8) | (207 << 16) | (184 << 24) | (60 << 32);
+    buf@[(base_word + 33)] = 15 | (5 << 8) | (195 << 16);
+
+    // Thunk 4: sys_close (ext_idx 4, offset -160) [Words base + 36..39]
+    // movq %rcx, %rdi / movl $3, %eax / syscall / ret
+    buf@[(base_word + 36)] = 72 | (137 << 8) | (207 << 16) | (184 << 24) | (3 << 32);
+    buf@[(base_word + 37)] = 15 | (5 << 8) | (195 << 16);
+
+    // Thunk 3: sys_write (ext_idx 3, offset -128) [Words base + 40..43]
+    emit_thunk3!(buf, base_word + 40, 1);
+
+    // Thunk 2: sys_read (ext_idx 2, offset -96) [Words base + 44..47]
+    emit_thunk3!(buf, base_word + 44, 0);
+
+    // Thunk 1: sys_open (ext_idx 1, offset -64) [Words base + 48..51]
+    buf@[(base_word + 48)] = 72 | (137 << 8) | (207 << 16) | (72 << 24) | (137 << 32) | (214 << 40) | (186 << 48) | (164 << 56);
+    buf@[(base_word + 49)] = 1 | (0 << 8) | (0 << 16) | (184 << 24) | (2 << 32) | (0 << 40) | (0 << 48) | (0 << 56);
+    buf@[(base_word + 50)] = 15 | (5 << 8) | (195 << 16);
+
+    // Thunk 0: sys_mmap (ext_idx 0, offset -32) [Words base + 52..55]
+    // movq %rcx, %rdi / movq %rdx, %rsi / push $3 / pop %rdx / push $0x22 / pop %r10 / push $-1 / pop %r8 / xorl %r9d, %r9d / push $9 / pop %rax / syscall / ret
+    buf@[(base_word + 52)] = 246245014765537608;
+    buf@[(base_word + 53)] = 4755636667398908506;
+    buf@[(base_word + 54)] = 1105644062766089560;
+    buf@[(base_word + 55)] = 49925;
+
+    ret 0;
+]

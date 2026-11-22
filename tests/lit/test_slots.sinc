@@ -1,0 +1,166 @@
+// ==========================================
+// tests/lit/test_slots.sinc
+// LIT Phase 3 Resident Slot Lifecycle & Hot-Swap Test Harness
+// ==========================================
+
+fn main!(argc, argv_ptr) [
+    if (argc < 2) [
+        sys_exit!(1);
+    ]
+
+    raw_arena = sys_mmap_dyn!(16777216);
+    if (raw_arena < 0) [
+        sys_exit!(2);
+    ]
+    arena = arena_init!(raw_arena, 16777216);
+
+    total_words = LIT_MAX_SLOTS * SLOT_STRIDE_WORDS;
+    table = arena_alloc_words!(arena, total_words);
+    loop (i = 0 .. total_words) [
+        table@[i] = 0;
+    ]
+
+    mode_str = argv_ptr@[1];
+    b1 = (mode_str@[0] >> 8) & 255;
+
+    if (b1 == 55) [
+        // Gate 17: Resident Slot Invocation Parity
+        if (argc < 3) [
+            sys_exit!(3);
+        ]
+        safe_path = argv_ptr@[2];
+
+        res = lit_slot_load!(table, 0, safe_path, 1001, arena);
+        if (res != LIT_EXIT_OK) [
+            sys_exit!(10);
+        ]
+
+        // Reject loading into already-occupied slot (Catch fix)
+        res_dup = lit_slot_load!(table, 0, safe_path, 1002, arena);
+        if (res_dup != LIT_ERR_SLOT_FULL) [
+            sys_exit!(11);
+        ]
+
+        val1 = lit_slot_call!(table, 0, 0, 0);
+        if (val1 != 55) [
+            sys_exit!(12);
+        ]
+
+        val2 = lit_slot_call!(table, 0, 0, 0);
+        if (val2 != 55) [
+            sys_exit!(13);
+        ]
+
+        if (slot_is_occupied(table, 0) == 0) [
+            sys_exit!(14);
+        ]
+        if (slot_get_hash(table, 0) != 1001) [
+            sys_exit!(15);
+        ]
+        if (slot_find_by_hash(table, 1001) != 0) [
+            sys_exit!(16);
+        ]
+        if (slot_find_free(table) != 1) [
+            sys_exit!(17);
+        ]
+
+        lit_slot_unload!(table, 0);
+        sys_exit!(0);
+    ]
+
+    if (b1 == 56) [
+        // Gate 18: Live Atomic Hot-Swap
+        if (argc < 4) [
+            sys_exit!(4);
+        ]
+        v1_path = argv_ptr@[2];
+        v2_path = argv_ptr@[3];
+
+        res1 = lit_slot_load!(table, 1, v1_path, 2001, arena);
+        if (res1 != LIT_EXIT_OK) [
+            sys_exit!(20);
+        ]
+
+        val1 = lit_slot_call!(table, 1, 0, 0);
+        if (val1 != 100) [
+            sys_exit!(21);
+        ]
+
+        res2 = lit_slot_hotswap!(table, 1, v2_path, 2002, arena);
+        if (res2 != LIT_EXIT_OK) [
+            sys_exit!(22);
+        ]
+
+        if (slot_get_hash(table, 1) != 2002) [
+            sys_exit!(23);
+        ]
+
+        val2 = lit_slot_call!(table, 1, 0, 0);
+        if (val2 != 200) [
+            sys_exit!(24);
+        ]
+
+        lit_slot_unload!(table, 1);
+        sys_exit!(0);
+    ]
+
+    if (b1 == 57) [
+        // Gate 19: Slot Table Bounds & Double-Unload Safety
+        if (argc < 3) [
+            sys_exit!(5);
+        ]
+        safe_path = argv_ptr@[2];
+
+        res_neg = lit_slot_call!(table, -1, 0, 0);
+        if (res_neg != LIT_ERR_SLOT_BOUNDS) [
+            sys_exit!(30);
+        ]
+
+        res_high = lit_slot_call!(table, LIT_MAX_SLOTS, 0, 0);
+        if (res_high != LIT_ERR_SLOT_BOUNDS) [
+            sys_exit!(31);
+        ]
+
+        res_load_neg = lit_slot_load!(table, -1, safe_path, 3001, arena);
+        if (res_load_neg != LIT_ERR_SLOT_BOUNDS) [
+            sys_exit!(32);
+        ]
+
+        res_load_high = lit_slot_load!(table, LIT_MAX_SLOTS, safe_path, 3001, arena);
+        if (res_load_high != LIT_ERR_SLOT_BOUNDS) [
+            sys_exit!(33);
+        ]
+
+        res_empty = lit_slot_call!(table, 2, 0, 0);
+        if (res_empty != LIT_ERR_SLOT_EMPTY) [
+            sys_exit!(34);
+        ]
+
+        res_swap_empty = lit_slot_hotswap!(table, 2, safe_path, 3002, arena);
+        if (res_swap_empty != LIT_ERR_SLOT_EMPTY) [
+            sys_exit!(35);
+        ]
+
+        res_ld = lit_slot_load!(table, 2, safe_path, 3003, arena);
+        if (res_ld != LIT_EXIT_OK) [
+            sys_exit!(36);
+        ]
+
+        lit_slot_unload!(table, 2);
+
+        res_after_unload = lit_slot_call!(table, 2, 0, 0);
+        if (res_after_unload != LIT_ERR_SLOT_EMPTY) [
+            sys_exit!(37);
+        ]
+
+        res_double = lit_slot_unload!(table, 2);
+        if (res_double != LIT_EXIT_OK) [
+            sys_exit!(38);
+        ]
+
+        sys_exit!(0);
+    ]
+
+    sys_exit!(99);
+]
+

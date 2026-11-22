@@ -1,0 +1,48 @@
+// ==========================================
+// lit/pure/dispatch.sinc
+// LIT Runtime: Pure Extension Dispatcher
+// ==========================================
+
+fn str_len_null(str_ptr) [
+    loop (idx:4096 = 0 .. 4096) [
+        if (str_ptr@[idx * 1] == 0) [
+            ret idx;
+        ]
+    ]
+    ret 0;
+]
+
+fn detect_file_kind(path_ptr) [
+    len = str_len_null(path_ptr);
+    if (len < 5) [
+        ret LIT_ERR_UNKNOWN_TYPE;
+    ]
+
+    c1 = path_ptr@[(len - 5) * 1];
+    c2 = path_ptr@[(len - 4) * 1];
+    c3 = path_ptr@[(len - 3) * 1];
+    c4 = path_ptr@[(len - 2) * 1];
+    c5 = path_ptr@[(len - 1) * 1];
+
+    if ((c1 == 46) & (c2 == 115) & (c3 == 97) & (c4 == 102) & (c5 == 101)) [
+        ret LIT_TARGET_SAFE;
+    ]
+
+    if ((c1 == 46) & (c2 == 115) & (c3 == 105) & (c4 == 110) & (c5 == 99)) [
+        ret LIT_TARGET_SINC;
+    ]
+
+    if (len > 5) [
+        s0 = path_ptr@[(len - 6) * 1];
+        s1 = path_ptr@[(len - 5) * 1];
+        s2 = path_ptr@[(len - 4) * 1];
+        s3 = path_ptr@[(len - 3) * 1];
+        s4 = path_ptr@[(len - 2) * 1];
+        s5 = path_ptr@[(len - 1) * 1];
+        if ((s0 == 46) & (s1 == 115) & (s2 == 116) & (s3 == 97) & (s4 == 102) & (s5 == 102)) [
+            ret LIT_TARGET_STAFF;
+        ]
+    ]
+
+    ret LIT_ERR_UNKNOWN_TYPE;
+]

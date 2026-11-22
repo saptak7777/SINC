@@ -1,0 +1,7 @@
+fn poly3(a, b, c) [
+    ret (a * a) + (b * c) + 42;
+]
+
+fn main() [
+    ret poly3(10, 20, 30);
+]

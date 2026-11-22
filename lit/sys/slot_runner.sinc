@@ -1,0 +1,103 @@
+// ==========================================
+// lit/sys/slot_runner.sinc
+// LIT Runtime: Resident Slot Lifecycle & Hot-Swapping
+// ==========================================
+
+fn lit_slot_load!(table, slot_id, safe_path, hash_val, arena) [
+    if ((slot_id < 0) | (!(slot_id < LIT_MAX_SLOTS))) [
+        ret LIT_ERR_SLOT_BOUNDS;
+    ]
+
+    off = slot_offset(slot_id);
+    entry = table@[off];
+    if (entry != 0) [
+        ret LIT_ERR_SLOT_FULL;
+    ]
+
+    meta = arena_alloc_words!(arena, 3);
+    err = lit_map_safe!(safe_path, meta, arena);
+    if (err != LIT_EXIT_OK) [
+        ret err;
+    ]
+
+    off_base = off + SLOT_BASE;
+    off_pages = off + SLOT_PAGES;
+    off_hash = off + SLOT_HASH;
+
+    table@[off_base] = meta@[1];
+    table@[off_pages] = meta@[2];
+    table@[off_hash] = hash_val;
+    table@[off] = meta@[0];
+    ret LIT_EXIT_OK;
+]
+
+fn lit_slot_call!(table, slot_id, argc, argv) [
+    if ((slot_id < 0) | (!(slot_id < LIT_MAX_SLOTS))) [
+        ret LIT_ERR_SLOT_BOUNDS;
+    ]
+
+    off = slot_offset(slot_id);
+    entry = table@[off];
+    if (entry == 0) [
+        ret LIT_ERR_SLOT_EMPTY;
+    ]
+
+    ret sys_call_entry!(entry, argc, argv);
+]
+
+fn lit_slot_hotswap!(table, slot_id, new_safe_path, new_hash, arena) [
+    if ((slot_id < 0) | (!(slot_id < LIT_MAX_SLOTS))) [
+        ret LIT_ERR_SLOT_BOUNDS;
+    ]
+
+    off = slot_offset(slot_id);
+    entry = table@[off];
+    if (entry == 0) [
+        ret LIT_ERR_SLOT_EMPTY;
+    ]
+
+    meta = arena_alloc_words!(arena, 3);
+    err = lit_map_safe!(new_safe_path, meta, arena);
+    if (err != LIT_EXIT_OK) [
+        ret err;
+    ]
+
+    off_base = off + SLOT_BASE;
+    off_pages = off + SLOT_PAGES;
+    off_hash = off + SLOT_HASH;
+
+    old_base = table@[off_base];
+    old_size = table@[off_pages];
+
+    table@[off_base] = meta@[1];
+    table@[off_pages] = meta@[2];
+    table@[off_hash] = new_hash;
+    table@[off] = meta@[0];
+
+    sys_munmap!(old_base, old_size);
+    ret LIT_EXIT_OK;
+]
+
+fn lit_slot_unload!(table, slot_id) [
+    if ((slot_id < 0) | (!(slot_id < LIT_MAX_SLOTS))) [
+        ret LIT_ERR_SLOT_BOUNDS;
+    ]
+
+    off = slot_offset(slot_id);
+    off_base = off + SLOT_BASE;
+    off_pages = off + SLOT_PAGES;
+    off_hash = off + SLOT_HASH;
+
+    old_base = table@[off_base];
+    old_size = table@[off_pages];
+
+    table@[off] = 0;
+    table@[off_base] = 0;
+    table@[off_pages] = 0;
+    table@[off_hash] = 0;
+
+    if (old_base != 0) [
+        sys_munmap!(old_base, old_size);
+    ]
+    ret LIT_EXIT_OK;
+]

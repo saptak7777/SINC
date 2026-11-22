@@ -1,0 +1,43 @@
+// ==========================================
+// lit/pure/cache.sinc
+// LIT Runtime: Cache Path Formatting
+// ==========================================
+
+fn format_cache_path!(hash_val, out_buf) [
+    out_buf@[0 * 1]  = 115; // 's'
+    out_buf@[1 * 1]  = 99;  // 'c'
+    out_buf@[2 * 1]  = 114; // 'r'
+    out_buf@[3 * 1]  = 97;  // 'a'
+    out_buf@[4 * 1]  = 116; // 't'
+    out_buf@[5 * 1]  = 99;  // 'c'
+    out_buf@[6 * 1]  = 104; // 'h'
+    out_buf@[7 * 1]  = 47;  // '/'
+    out_buf@[8 * 1]  = 108; // 'l'
+    out_buf@[9 * 1]  = 105; // 'i'
+    out_buf@[10 * 1] = 116; // 't'
+    out_buf@[11 * 1] = 95;  // '_'
+    out_buf@[12 * 1] = 99;  // 'c'
+    out_buf@[13 * 1] = 97;  // 'a'
+    out_buf@[14 * 1] = 99;  // 'c'
+    out_buf@[15 * 1] = 104; // 'h'
+    out_buf@[16 * 1] = 101; // 'e'
+    out_buf@[17 * 1] = 47;  // '/'
+
+    loop (i:16 = 0 .. 16) [
+        shift = (15 - i) * 4;
+        nibble = (hash_val >> shift) & 15;
+        if (nibble < 10) [
+            out_buf@[(18 + i) * 1] = 48 + nibble;
+        ] else [
+            out_buf@[(18 + i) * 1] = 87 + nibble;
+        ]
+    ]
+
+    out_buf@[34 * 1] = 46;  // '.'
+    out_buf@[35 * 1] = 115; // 's'
+    out_buf@[36 * 1] = 97;  // 'a'
+    out_buf@[37 * 1] = 102; // 'f'
+    out_buf@[38 * 1] = 101; // 'e'
+    out_buf@[39 * 1] = 0;   // '\0'
+    ret 0;
+]

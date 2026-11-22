@@ -1,0 +1,30 @@
+// ==========================================
+// tests/lit/test_slots.staff
+// Test Harness Manifest for LIT Phase 3 Slots
+// ==========================================
+
+artifact test_slots [
+    target = linux_x64;
+    type   = bin;
+]
+
+deps [
+    steel/sys/sys.sinc;
+    steel/sys/arena.sinc;
+    steel/sys/thunk_emitter.sinc;
+    steel/pure/hash.sinc;
+    lit/data/lit_defs.sinc;
+    lit/pure/safe_header.sinc;
+    lit/pure/slots.sinc;
+    lit/sys/runner.sinc;
+    lit/sys/slot_runner.sinc;
+]
+
+driver [
+    tests/lit/test_slots.sinc;
+]
+
+flags [
+    optimize = 3;
+    heap     = 33554432;
+]

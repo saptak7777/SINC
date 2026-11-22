@@ -1,0 +1,75 @@
+// ==========================================
+// lit/sys/runner.sinc
+// LIT Runtime: Sovereign Memory Mapping & Execution
+// ==========================================
+
+fn lit_map_safe!(safe_path, out_meta, arena) [
+    fd = sys_open_read!(safe_path);
+    if (fd < 0) [
+        ret LIT_ERR_OPEN;
+    ]
+
+    header_buf = arena_alloc_words!(arena, 4);
+    hdr_bytes = sys_read!(fd, header_buf, 32);
+    if (hdr_bytes != 32) [
+        sys_close!(fd);
+        ret LIT_ERR_SHORT_READ;
+    ]
+
+    magic_ver = header_buf@[SAFE_HDR_MAGIC_VER];
+    code_len = header_buf@[SAFE_HDR_CODE_LEN];
+    main_offset = header_buf@[SAFE_HDR_MAIN_OFFSET];
+    align = header_buf@[SAFE_HDR_ALIGNMENT];
+
+    err = validate_safe_header(magic_ver, code_len, main_offset, align);
+    if (err != LIT_EXIT_OK) [
+        sys_close!(fd);
+        ret err;
+    ]
+
+    alloc_size = compute_page_aligned_size(PAGE_SIZE + code_len);
+    mem = sys_mmap_dyn!(alloc_size);
+    if (mem < 0) [
+        sys_close!(fd);
+        ret LIT_ERR_MMAP;
+    ]
+
+    thunk_base_word = (PAGE_SIZE - 448) >> 3;
+    emit_reverse_thunk_table!(mem, thunk_base_word);
+
+    k_code_start = mem + PAGE_SIZE;
+    code_bytes = sys_read!(fd, k_code_start, code_len);
+    sys_close!(fd);
+    if (code_bytes != code_len) [
+        sys_munmap!(mem, alloc_size);
+        ret LIT_ERR_SHORT_READ;
+    ]
+
+    prot_err = sys_mprotect!(mem, alloc_size, PROT_RX);
+    if (prot_err < 0) [
+        sys_munmap!(mem, alloc_size);
+        ret LIT_ERR_MPROTECT;
+    ]
+
+    out_meta@[0] = k_code_start + main_offset;
+    out_meta@[1] = mem;
+    out_meta@[2] = alloc_size;
+    ret LIT_EXIT_OK;
+]
+
+fn lit_run_safe!(safe_path, child_argc, child_argv, arena) [
+    meta = arena_alloc_words!(arena, 3);
+    err = lit_map_safe!(safe_path, meta, arena);
+    if (err != LIT_EXIT_OK) [
+        ret err;
+    ]
+
+    entry_ptr = meta@[0];
+    mem = meta@[1];
+    alloc_size = meta@[2];
+
+    result = sys_call_entry!(entry_ptr, child_argc, child_argv);
+
+    sys_munmap!(mem, alloc_size);
+    ret result;
+]

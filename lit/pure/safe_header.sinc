@@ -1,0 +1,30 @@
+// ==========================================
+// lit/pure/safe_header.sinc
+// LIT Pure Header Validation & Page Geometry
+// ==========================================
+
+fn validate_safe_header(magic_ver, code_len, main_offset, align) [
+    magic = magic_ver & 4294967295;
+    ver = magic_ver >> 32;
+    if (magic != SAFE_MAGIC) [
+        ret LIT_ERR_BAD_MAGIC;
+    ]
+    if (ver != SAFE_VERSION) [
+        ret LIT_ERR_BAD_MAGIC;
+    ]
+    if (code_len == 0) [
+        ret LIT_ERR_BAD_GEOMETRY;
+    ]
+    if (align != SAFE_ALIGNMENT) [
+        ret LIT_ERR_BAD_GEOMETRY;
+    ]
+    if (!(main_offset < code_len)) [
+        ret LIT_ERR_BAD_GEOMETRY;
+    ]
+    ret LIT_EXIT_OK;
+]
+
+fn compute_page_aligned_size(code_len) [
+    ret ((code_len + PAGE_MASK) >> 12) << 12;
+]
+

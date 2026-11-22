@@ -1,0 +1,21 @@
+// ==========================================
+// lit/build.staff
+// LIT Sovereign Loader Manifest
+// ==========================================
+
+artifact lit [
+    target = linux_x64;
+    type   = bin;
+]
+
+deps [
+    steel/sys/sys.sinc;
+    steel/sys/arena.sinc;
+    steel/sys/thunk_emitter.sinc;
+    steel/pure/hash.sinc;
+]
+
+flags [
+    optimize = 3;
+    heap     = 33554432;
+]

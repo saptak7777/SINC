@@ -1,0 +1,103 @@
+// ==========================================
+// lit/sys/triad_scanner.sinc
+// LIT Runtime: Triad Directory Auto-Discovery & Commutative Hashing
+// ==========================================
+
+fn lit_hash_triad_folder!(root_ptr, root_len, sub_word, sub_len, arena) [
+    dir_path = arena_alloc_words!(arena, 40);
+    loop (k = 0 .. root_len) [
+        dir_path@[k * 1] = root_ptr@[k * 1];
+    ]
+    dir_path@[root_len * 1] = 47;
+    loop (k = 0 .. sub_len) [
+        dir_path@[(root_len + 1 + k) * 1] = (sub_word >> (k * 8)) & 255;
+    ]
+    dir_len = root_len + 1 + sub_len;
+    dir_path@[dir_len * 1] = 0;
+
+    fd = sys_open_read!(dir_path);
+    if (fd < 0) [
+        ret 0;
+    ]
+
+    dir_buf = arena_alloc_words!(arena, 2048);
+    nbytes = sys_getdents!(fd, dir_buf, 16384);
+    sys_close!(fd);
+    if (nbytes < 1) [
+        ret 0;
+    ]
+
+    dir_path@[dir_len * 1] = 47;
+    file_path = arena_alloc_words!(arena, 64);
+    loop (k = 0 .. (dir_len + 1)) [
+        file_path@[k * 1] = dir_path@[k * 1];
+    ]
+
+    file_buf = arena_alloc_words!(arena, 131072);
+    dir_acc = 0;
+    pos = 0;
+
+    loop (step = 0 .. 500) [
+        if (pos < nbytes) [
+            reclen = dir_buf@[(pos + 16) * 1] | (dir_buf@[(pos + 17) * 1] << 8);
+            if ((reclen < 24) | ((pos + reclen) > nbytes)) [
+                ret dir_acc;
+            ]
+
+            name_ptr = dir_buf + pos + 19;
+            name_len = 0;
+            finding_len = 1;
+            loop (nk = 0 .. 256) [
+                if (finding_len != 0) [
+                    nc = name_ptr@[nk * 1];
+                    if (nc == 0) [
+                        name_len = nk;
+                        finding_len = 0;
+                    ]
+                ]
+            ]
+
+            if (name_len > 5) [
+                is_sinc = 0;
+                if (name_ptr@[(name_len - 5) * 1] == 46) [
+                    if (name_ptr@[(name_len - 4) * 1] == 115) [
+                        if (name_ptr@[(name_len - 3) * 1] == 105) [
+                            if (name_ptr@[(name_len - 2) * 1] == 110) [
+                                if (name_ptr@[(name_len - 1) * 1] == 99) [
+                                    is_sinc = 1;
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+
+                if (is_sinc == 1) [
+                    loop (ck = 0 .. name_len) [
+                        file_path@[(dir_len + 1 + ck) * 1] = name_ptr@[ck * 1];
+                    ]
+                    file_path@[(dir_len + 1 + name_len) * 1] = 0;
+
+                    ffd = sys_open_read!(file_path);
+                    if (ffd > -1) [
+                        flen = sys_read!(ffd, file_buf, 1048576);
+                        sys_close!(ffd);
+                        if (flen > -1) [
+                            fh1 = hash_fnv1a_buf!(file_buf, flen);
+                            fh2 = hash_fnv1a_update!(fh1, name_ptr, name_len);
+                            dir_acc = dir_acc ^ fh2;
+                        ]
+                    ]
+                ]
+            ]
+            pos = pos + reclen;
+        ]
+    ]
+    ret dir_acc;
+]
+
+fn lit_hash_triad_all!(root_ptr, root_len, arena) [
+    h_data = lit_hash_triad_folder!(root_ptr, root_len, 1635017060, 4, arena);
+    h_pure = lit_hash_triad_folder!(root_ptr, root_len, 1701999984, 4, arena);
+    h_sys  = lit_hash_triad_folder!(root_ptr, root_len, 7567731, 3, arena);
+    ret (h_data ^ h_pure) ^ h_sys;
+]

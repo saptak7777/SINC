@@ -15,3 +15,14 @@ fn hash_fnv1a(slice) [
     ]
     ret h;
 ]
+
+fn hash_fnv1a_update!(h, buf, len) [
+    loop (idx:10000000 = 0 .. len) [
+        h = (h ^ buf@[idx * 1]) * FNV_PRIME;
+    ]
+    ret h;
+]
+
+fn hash_fnv1a_buf!(buf, len) [
+    ret hash_fnv1a_update!(FNV_OFFSET, buf, len);
+]

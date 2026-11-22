@@ -1,0 +1,160 @@
+// ==========================================
+// lit/sys/entry.sinc
+// LIT CLI Entrypoint Driver
+// ==========================================
+
+fn lit_compile_and_run!(compiler_safe_path, target_path, cache_path, argc, argv_ptr, arena) [
+    cache_fd = sys_open_read!(cache_path);
+    if (cache_fd > -1) [
+        sys_close!(cache_fd);
+    ] else [
+        pid = sys_fork!();
+        if (pid < 0) [
+            sys_exit!(LIT_ERR_FORK);
+        ]
+        if (pid == 0) [
+            comp_argv = arena_alloc_words!(arena, 4);
+            comp_argv@[0] = target_path;
+            comp_argv@[1] = target_path;
+            comp_argv@[2] = cache_path;
+            res = lit_run_safe!(compiler_safe_path, 3, comp_argv, arena);
+            sys_exit!(res);
+        ]
+        status_buf = arena_alloc_words!(arena, 2);
+        status_buf@[0] = 0;
+        wret = sys_wait4!(pid, status_buf, 0);
+        if (wret < 0) [
+            sys_exit!(LIT_ERR_WAIT);
+        ]
+        wstatus = status_buf@[0] & 4294967295;
+        if (wstatus != 0) [
+            sys_exit!(LIT_ERR_COMPILE);
+        ]
+    ]
+
+    child_argc = argc - 1;
+    child_argv = argv_ptr + 8;
+    res = lit_run_safe!(cache_path, child_argc, child_argv, arena);
+    sys_exit!(res);
+]
+
+fn main!(argc, argv_ptr) [
+    if (argc < 2) [
+        sys_exit!(LIT_ERR_ARGS);
+    ]
+
+    target_path = argv_ptr@[1];
+    kind = detect_file_kind(target_path);
+    if (kind == LIT_ERR_UNKNOWN_TYPE) [
+        sys_exit!(LIT_ERR_UNKNOWN_TYPE);
+    ]
+
+    raw_arena = sys_mmap_dyn!(16777216);
+    if (raw_arena < 0) [
+        sys_exit!(LIT_ERR_MMAP);
+    ]
+    arena = arena_init!(raw_arena, 16777216);
+
+    if (kind == LIT_TARGET_SAFE) [
+        child_argc = argc - 1;
+        child_argv = argv_ptr + 8;
+        res = lit_run_safe!(target_path, child_argc, child_argv, arena);
+        sys_exit!(res);
+    ]
+
+    if (kind == LIT_TARGET_SINC) [
+        fd = sys_open_read!(target_path);
+        if (fd < 0) [
+            sys_exit!(LIT_ERR_OPEN);
+        ]
+        src_buf = arena_alloc_words!(arena, 131072);
+        src_len = sys_read!(fd, src_buf, 1048576);
+        sys_close!(fd);
+        if (src_len < 0) [
+            sys_exit!(LIT_ERR_SHORT_READ);
+        ]
+
+        sinc_path = arena_alloc_words!(arena, 2);
+        sinc_path@[0] = 7164780000630958434;
+        sinc_path@[1] = 435509359406;
+
+        comp_seed = FNV_OFFSET;
+        sfd = sys_open_read!(sinc_path);
+        if (sfd > -1) [
+            cbuf = arena_alloc_words!(arena, 131072);
+            clen = sys_read!(sfd, cbuf, 1048576);
+            sys_close!(sfd);
+            if (clen > 0) [
+                comp_seed = hash_fnv1a_update!(comp_seed, cbuf, clen);
+            ]
+        ]
+
+        h = hash_fnv1a_update!(comp_seed, src_buf, src_len);
+        cache_path = arena_alloc_words!(arena, 8);
+        format_cache_path!(h, cache_path);
+
+        lit_compile_and_run!(sinc_path, target_path, cache_path, argc, argv_ptr, arena);
+    ]
+
+    if (kind == LIT_TARGET_STAFF) [
+        fd = sys_open_read!(target_path);
+        if (fd < 0) [
+            sys_exit!(LIT_ERR_OPEN);
+        ]
+        man_buf = arena_alloc_words!(arena, 131072);
+        man_len = sys_read!(fd, man_buf, 1048576);
+        sys_close!(fd);
+        if (man_len < 0) [
+            sys_exit!(LIT_ERR_SHORT_READ);
+        ]
+
+        staff_path = arena_alloc_words!(arena, 2);
+        staff_path@[0] = 7377305702675409250;
+        staff_path@[1] = 111490396008038;
+
+        comp_seed = FNV_OFFSET;
+        sfd = sys_open_read!(staff_path);
+        if (sfd > -1) [
+            cbuf = arena_alloc_words!(arena, 131072);
+            clen = sys_read!(sfd, cbuf, 1048576);
+            sys_close!(sfd);
+            if (clen > 0) [
+                comp_seed = hash_fnv1a_update!(comp_seed, cbuf, clen);
+            ]
+        ]
+
+        h = hash_fnv1a_update!(comp_seed, man_buf, man_len);
+
+        art_name = arena_alloc_words!(arena, 64);
+        art_len = parse_staff_artifact_name!(man_buf, man_len, art_name);
+        if (art_len > 0) [
+            h_art = lit_hash_triad_all!(art_name, art_len, arena);
+            h = (h ^ h_art) * FNV_PRIME;
+        ]
+
+        deps_list = arena_alloc_words!(arena, 256);
+        deps_count = parse_staff_deps!(man_buf, man_len, deps_list);
+        dbuf = arena_alloc_words!(arena, 262144);
+
+        loop (di = 0 .. deps_count) [
+            dep_path = deps_list@[di];
+            dfd = sys_open_read!(dep_path);
+            if (dfd < 0) [
+                sys_exit!(LIT_ERR_OPEN);
+            ]
+            dlen = sys_read!(dfd, dbuf, 2097152);
+            sys_close!(dfd);
+            if (dlen < 0) [
+                sys_exit!(LIT_ERR_SHORT_READ);
+            ]
+            h = hash_fnv1a_update!(h, dbuf, dlen);
+        ]
+
+        cache_path = arena_alloc_words!(arena, 8);
+        format_cache_path!(h, cache_path);
+
+        lit_compile_and_run!(staff_path, target_path, cache_path, argc, argv_ptr, arena);
+    ]
+
+    sys_exit!(LIT_ERR_UNKNOWN_TYPE);
+]

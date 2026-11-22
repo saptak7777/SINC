@@ -17,6 +17,7 @@ core
 !bin/packager_bin
 !bin/packager_o
 !bin/slim.elf
+!bin/lit.elf
 
 # Test & benchmark temporary files
 temp_*

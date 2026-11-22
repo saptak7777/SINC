@@ -12,11 +12,29 @@ extern fn exit!();
 extern fn getdents!();
 extern fn get_argv!();
 extern fn ioctl!();
+extern fn mprotect!();
+extern fn munmap!();
+extern fn call_entry!();
+extern fn fork!();
+extern fn wait4!();
 
 // --- 1. Memory Backing ---
 fn sys_mmap!(size) [
+    ptr = mmap!(536870912, size, 3, 34, -1, 0);
+    ret ptr;
+]
+
+fn sys_mmap_dyn!(size) [
     ptr = mmap!(0, size, 3, 34, -1, 0);
     ret ptr;
+]
+
+fn sys_mprotect!(addr, len, prot) [
+    ret mprotect!(addr, len, prot);
+]
+
+fn sys_munmap!(addr, len) [
+    ret munmap!(addr, len);
 ]
 
 // --- 2. File Input/Output ---
@@ -62,8 +80,20 @@ fn sys_ioctl!(fd, request, argp) [
     ret ioctl!(fd, request, argp);
 ]
 
-// --- 3. Process Control ---
+// --- 3. Process Control & Execution ---
 fn sys_exit!(code) [
     exit!(code);
     ret 0;
+]
+
+fn sys_call_entry!(entry, arg0, arg1) [
+    ret call_entry!(entry, arg0, arg1);
+]
+
+fn sys_fork!() [
+    ret fork!();
+]
+
+fn sys_wait4!(pid, status_ptr, options) [
+    ret wait4!(pid, status_ptr, options);
 ]

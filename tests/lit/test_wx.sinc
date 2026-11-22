@@ -1,0 +1,32 @@
+// ==========================================
+// tests/lit/test_wx.sinc
+// LIT Gate 7: Active Runtime Memory Mapping & W^X Verifier
+// ==========================================
+
+fn main!(argc, argv_ptr) [
+    raw = sys_mmap_dyn!(65536);
+    if (raw < 0) [
+        sys_exit!(1);
+    ]
+
+    path = raw;
+    path@[0] = 7310238724270485551;
+    path@[1] = 32493186067687020;
+
+    fd = sys_open_read!(path);
+    if (fd < 0) [
+        sys_exit!(2);
+    ]
+
+    buf = raw + 32;
+    n = sys_read!(fd, buf, 65000);
+    sys_close!(fd);
+
+    if (n < 1) [
+        sys_exit!(3);
+    ]
+
+    sys_write!(1, buf, n);
+    sys_exit!(0);
+]
+

@@ -1,0 +1,46 @@
+// ==========================================
+// lit/data/lit_defs.sinc
+// LIT Runtime Constant Lenses & Geometry
+// ==========================================
+
+const SAFE_MAGIC           = 1396786245; // 0x53414645 ("SAFE")
+const SAFE_VERSION         = 1;
+const SAFE_ALIGNMENT       = 32;
+
+const SAFE_HDR_MAGIC_VER   = 0;
+const SAFE_HDR_CODE_LEN    = 1;
+const SAFE_HDR_MAIN_OFFSET = 2;
+const SAFE_HDR_ALIGNMENT   = 3;
+
+const LIT_TARGET_SAFE      = 0;
+const LIT_TARGET_SINC      = 1;
+const LIT_TARGET_STAFF     = 2;
+
+const LIT_EXIT_OK          = 0;
+const LIT_ERR_ARGS         = 1;
+const LIT_ERR_OPEN         = 2;
+const LIT_ERR_BAD_MAGIC    = 3;
+const LIT_ERR_BAD_GEOMETRY = 4;
+const LIT_ERR_MMAP         = 5;
+const LIT_ERR_SHORT_READ   = 6;
+const LIT_ERR_MPROTECT     = 7;
+const LIT_ERR_UNKNOWN_TYPE = 8;
+const LIT_ERR_COMPILE      = 9;
+const LIT_ERR_FORK         = 10;
+const LIT_ERR_WAIT         = 11;
+const LIT_ERR_SLOT_FULL    = 12;
+const LIT_ERR_SLOT_BOUNDS  = 13;
+const LIT_ERR_SLOT_EMPTY   = 14;
+
+const SLOT_ENTRY           = 0;
+const SLOT_BASE            = 1;
+const SLOT_PAGES           = 2;
+const SLOT_HASH            = 3;
+const SLOT_STRIDE_WORDS    = 4;
+
+const LIT_MAX_SLOTS        = 64;
+
+const PROT_RX              = 5;
+
+const PAGE_SIZE            = 4096;
+const PAGE_MASK            = 4095;
