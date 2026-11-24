@@ -1,4 +1,4 @@
-// fixture: wrapper_assign_bad.sinc — assignment forwarder wrapper
+// fixture: wrapper_assign_bad.sinc -- assignment forwarder wrapper
 fn target(x, y) [
     ret x * y;
 ]

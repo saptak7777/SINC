@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-DEFAULT_SINC="$ROOT_DIR/bin/sinc.elf"
-[ -x "$DEFAULT_SINC" ] || DEFAULT_SINC="$ROOT_DIR/sinc.elf"
+DEFAULT_SINC="$ROOT_DIR/bin/sinc"
+[ -x "$DEFAULT_SINC" ] || DEFAULT_SINC="$ROOT_DIR/bin/sinc.elf"
 SINC=${1:-${SINC:-"$DEFAULT_SINC"}}
 
 DEFAULT_PACKAGER="$ROOT_DIR/bin/packager_bin"

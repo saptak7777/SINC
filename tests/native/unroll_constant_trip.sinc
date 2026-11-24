@@ -1,5 +1,5 @@
 // EXPECT: 30
-// Test: Phase 6 — Constant trip-count loop unrolling
+// Test: Phase 6 -- Constant trip-count loop unrolling
 fn run_unroll_trip(scale) [
     sum = 0;
     loop (i:5 = 0 .. 5) [

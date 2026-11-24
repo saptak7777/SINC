@@ -14,33 +14,40 @@ fn str_len_null(str_ptr) [
 
 fn detect_file_kind(path_ptr) [
     len = str_len_null(path_ptr);
-    if (len < 5) [
-        ret LIT_ERR_UNKNOWN_TYPE;
-    ]
-
-    c1 = path_ptr@[(len - 5) * 1];
-    c2 = path_ptr@[(len - 4) * 1];
-    c3 = path_ptr@[(len - 3) * 1];
-    c4 = path_ptr@[(len - 2) * 1];
-    c5 = path_ptr@[(len - 1) * 1];
-
-    if ((c1 == 46) & (c2 == 115) & (c3 == 97) & (c4 == 102) & (c5 == 101)) [
-        ret LIT_TARGET_SAFE;
-    ]
-
-    if ((c1 == 46) & (c2 == 115) & (c3 == 105) & (c4 == 110) & (c5 == 99)) [
-        ret LIT_TARGET_SINC;
-    ]
-
-    if (len > 5) [
-        s0 = path_ptr@[(len - 6) * 1];
-        s1 = path_ptr@[(len - 5) * 1];
-        s2 = path_ptr@[(len - 4) * 1];
-        s3 = path_ptr@[(len - 3) * 1];
-        s4 = path_ptr@[(len - 2) * 1];
-        s5 = path_ptr@[(len - 1) * 1];
-        if ((s0 == 46) & (s1 == 115) & (s2 == 116) & (s3 == 97) & (s4 == 102) & (s5 == 102)) [
+    if (len > 9) [
+        s0 = path_ptr@[(len - 10) * 1];
+        s1 = path_ptr@[(len - 9) * 1];
+        s2 = path_ptr@[(len - 8) * 1];
+        s3 = path_ptr@[(len - 7) * 1];
+        s4 = path_ptr@[(len - 6) * 1];
+        s5 = path_ptr@[(len - 5) * 1];
+        s6 = path_ptr@[(len - 4) * 1];
+        s7 = path_ptr@[(len - 3) * 1];
+        s8 = path_ptr@[(len - 2) * 1];
+        s9 = path_ptr@[(len - 1) * 1];
+        if ((s0 == 46) & (s1 == 115) & (s2 == 116) & (s3 == 97) & (s4 == 102) & (s5 == 102) & (s6 == 46) & (s7 == 116) & (s8 == 114) & (s9 == 103)) [
             ret LIT_TARGET_STAFF;
+        ]
+    ]
+
+    if (len > 4) [
+        c1 = path_ptr@[(len - 5) * 1];
+        c2 = path_ptr@[(len - 4) * 1];
+        c3 = path_ptr@[(len - 3) * 1];
+        c4 = path_ptr@[(len - 2) * 1];
+        c5 = path_ptr@[(len - 1) * 1];
+        if ((c1 == 46) & (c2 == 115) & (c3 == 97) & (c4 == 102) & (c5 == 101)) [
+            ret LIT_TARGET_SAFE;
+        ]
+    ]
+
+    if (len > 3) [
+        t1 = path_ptr@[(len - 4) * 1];
+        t2 = path_ptr@[(len - 3) * 1];
+        t3 = path_ptr@[(len - 2) * 1];
+        t4 = path_ptr@[(len - 1) * 1];
+        if ((t1 == 46) & (t2 == 116) & (t3 == 114) & (t4 == 103)) [
+            ret LIT_TARGET_TRG;
         ]
     ]
 

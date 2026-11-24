@@ -1,5 +1,5 @@
 // EXPECT: 95
-// Test: Phase 5 LICM — Multi-level nested loop invariant hoisting
+// Test: Phase 5 LICM -- Multi-level nested loop invariant hoisting
 fn main() [
     a = 3;
     b = 7;

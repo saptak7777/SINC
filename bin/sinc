@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# =============================================================================
+# bin/sinc: SINC Linux Host Compatibility Adapter
+# External wrapper translating host .sinc files via bin/trg_encode and executing
+# the native bin/sinc.elf compiler core. Direct .trg inputs bypass translation.
+# =============================================================================
+set -euo pipefail
+
+ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+SINC_ELF="$ROOT_DIR/bin/sinc.elf"
+TRG_ENCODE="$ROOT_DIR/bin/trg_encode"
+
+if [ "$#" -lt 2 ]; then
+    echo "Usage: bin/sinc <input.sinc|input.trg> <output.safe>" >&2
+    exit 1
+fi
+
+IN_FILE="$1"
+OUT_FILE="$2"
+
+if [[ "$IN_FILE" == *.trg ]]; then
+    exec "$SINC_ELF" "$IN_FILE" "$OUT_FILE"
+fi
+
+TMP_TRG=$(mktemp "${TMPDIR:-/tmp}/sinc_trg_XXXXXX.trg")
+trap 'rm -f "$TMP_TRG"' EXIT
+
+"$TRG_ENCODE" "$IN_FILE" "$TMP_TRG" || exit $?
+exec "$SINC_ELF" "$TMP_TRG" "$OUT_FILE"
+

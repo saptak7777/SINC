@@ -48,7 +48,8 @@ def build_golden_baseline(sinc_bin, packager_bin, packager_o):
     built_safe = os.path.join(ROOT_DIR, "scratch", "build", "sinc_compiler.safe")
     seed_safe = os.path.join(seed_dir, "sinc.safe")
     shutil.copy2(built_safe, seed_safe)
-    shutil.copy2(sinc_bin, os.path.join(seed_dir, "sinc.elf"))
+    sinc_elf = os.path.join(ROOT_DIR, "bin", "sinc.elf") if (sinc_bin.endswith("/sinc") or not sinc_bin.endswith(".elf")) else sinc_bin
+    shutil.copy2(sinc_elf, os.path.join(seed_dir, "sinc.elf"))
     shutil.copy2(packager_bin, os.path.join(seed_dir, "packager_bin"))
     shutil.copy2(packager_o, os.path.join(seed_dir, "packager_o"))
 
@@ -464,7 +465,8 @@ def audit_golden_baseline(sinc_bin, packager_bin, packager_o):
             status_safe = "MATCH" if match_safe else "DIFF"
             print(f"  {'Tree-Built sinc_compiler.safe':<32} | {status_safe:<8} | SHA: {curr_safe_sha[:12]}... (Base: {base_safe_sha[:12]}...)")
 
-            curr_elf_sha = sha256_file(sinc_bin)
+            sinc_elf = os.path.join(ROOT_DIR, "bin", "sinc.elf") if (sinc_bin.endswith("/sinc") or not sinc_bin.endswith(".elf")) else sinc_bin
+            curr_elf_sha = sha256_file(sinc_elf)
             base_elf_sha = master["seed_compiler"]["elf_sha"]
             match_elf = (curr_elf_sha == base_elf_sha)
             record("Tree-Built ELF Binary", "Compiler", match_elf, f"{curr_elf_sha[:10]} vs {base_elf_sha[:10]}")

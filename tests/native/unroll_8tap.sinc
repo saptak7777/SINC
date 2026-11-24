@@ -1,5 +1,5 @@
 // EXPECT: 196
-// Test: Phase 6 — Constant trip-count loop unrolling with K=8
+// Test: Phase 6 -- Constant trip-count loop unrolling with K=8
 fn run_unroll_8tap(scale) [
     sum = 0;
     loop (i:8 = 0 .. 8) [

@@ -1,0 +1,139 @@
+// ==========================================
+// scratch/trg_redesign/steel/utf8_to_trg.sinc
+// S.T.E.E.L. In-Memory UTF-8 to Canonical TRG Encoder (SWAR-Safe)
+// ==========================================
+
+fn trg_init_lut!(lut) [
+    loop (i:300 = 0 .. 256) [
+        lut@[i] = 0 - 1;
+    ]
+
+    // Script 1: English 'A'..'Z' (65..90) -> 0..25
+    loop (c:100 = 65 .. 91) [
+        lut@[c] = c - 65;
+    ]
+
+    // Script 1: English 'a'..'z' (97..122) -> 26..51
+    loop (c:130 = 97 .. 123) [
+        lut@[c] = (c - 97) + 26;
+    ]
+
+    // Script 1: Digits '0'..'9' (48..57) -> 52..61
+    loop (c:60 = 48 .. 58) [
+        lut@[c] = (c - 48) + 52;
+    ]
+
+    // Operators: 0x70..0x7F (112..127)
+    // + - * / % = < > ! & | ^ ~ ? @ #
+    lut@[43]  = 112;
+    lut@[45]  = 113;
+    lut@[42]  = 114;
+    lut@[47]  = 115;
+    lut@[37]  = 116;
+    lut@[61]  = 117;
+    lut@[60]  = 118;
+    lut@[62]  = 119;
+    lut@[33]  = 120;
+    lut@[38]  = 121;
+    lut@[124] = 122;
+    lut@[94]  = 123;
+    lut@[126] = 124;
+    lut@[63]  = 125;
+    lut@[64]  = 126;
+    lut@[35]  = 127;
+
+    // Delimiters: 0xF0..0xFF (240..255)
+    // ' ' \n \t _ ( ) [ ] { } ; : , . " '
+    lut@[32]  = 240;
+    lut@[10]  = 241;
+    lut@[9]   = 242;
+    lut@[95]  = 243;
+    lut@[40]  = 244;
+    lut@[41]  = 245;
+    lut@[91]  = 246;
+    lut@[93]  = 247;
+    lut@[123] = 248;
+    lut@[125] = 249;
+    lut@[59]  = 250;
+    lut@[58]  = 251;
+    lut@[44]  = 252;
+    lut@[46]  = 253;
+    lut@[34]  = 254;
+    lut@[39]  = 255;
+
+    ret 0;
+]
+
+fn utf8_to_trg_buf!(src_buf, src_len, out_buf, lut) [
+    // 1. Write 64-byte Header (Cache Line 0)
+    // Bytes 0..3: Length, Byte 4: ScriptA=1, Byte 5: ScriptB=0, Byte 6: Flags=0, Byte 7: Magic='T' (84)
+    w0 = (src_len & 4294967295) | (1 << 32) | (84 << 56);
+    out_buf@[0] = w0;
+    out_buf@[1] = 0;
+    out_buf@[2] = 0;
+    out_buf@[3] = 0;
+    out_buf@[4] = 0;
+    out_buf@[5] = 0;
+    out_buf@[6] = 0;
+    out_buf@[7] = 0;
+
+    // 2. Encode Payload into Cache Line 1 (out_buf + 64)
+    payload = out_buf + 64;
+    in_comment = 0;
+    loop (i:10000000 = 0 .. src_len) [
+        b = src_buf@[i * 1];
+        if (in_comment == 0) [
+            if (b == 47) [
+                if ((i + 1) < src_len) [
+                    nb = src_buf@[(i + 1) * 1];
+                    if (nb == 47) [
+                        in_comment = 1;
+                    ]
+                    if (nb == 42) [
+                        in_comment = 2;
+                    ]
+                ]
+            ]
+        ] else [
+            if (in_comment == 1) [
+                if (b == 10) [
+                    in_comment = 0;
+                ]
+            ] else [
+                if (b == 42) [
+                    if ((i + 1) < src_len) [
+                        nb = src_buf@[(i + 1) * 1];
+                        if (nb == 47) [
+                            in_comment = 3;
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        tb = lut@[b];
+        if (tb < 0) [
+            if (b == 13) [
+                tb = 241;
+            ] else [
+                if (in_comment != 0) [
+                    tb = 240;
+                ] else [
+                    sys_exit!(21);
+                ]
+            ]
+        ]
+        payload@[i * 1] = tb;
+        if (in_comment == 3) [
+            if (b == 47) [
+                in_comment = 0;
+            ]
+        ]
+    ]
+
+    // 3. Zero-Pad 8 Trailing Bytes (SWAR Over-Read Safety at EOF)
+    loop (pad:8 = 0 .. 8) [
+        payload@[(src_len + pad) * 1] = 0;
+    ]
+
+    ret 64 + src_len;
+]

@@ -1,6 +1,6 @@
 // EXPECT: 53
 // REQUIRE_INSN: shlx
-// Test: Subphase 1.1 — BMI2 SHLX, SHRX, SARX variable shifts across non-RCX arbitrary registers
+// Test: Subphase 1.1 -- BMI2 SHLX, SHRX, SARX variable shifts across non-RCX arbitrary registers
 fn test_variable_shl(val, amt) [
     ret val << amt;
 ]

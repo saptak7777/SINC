@@ -3,24 +3,34 @@
 // SINC Compiler: Self-Hosted Pipeline & Code Generation Core
 // ==========================================
 
-fn compile_core!(src_buf, src_len, arena) [
+fn compile_core!(src_buf, buf_bytes, arena) [
+    if (buf_bytes < 72) [
+        sys_exit!(20);
+    ]
+    w0 = src_buf@[0];
+    hi = w0 >> 32;
+    if ((hi & 4294902015) != 1409286145) [
+        sys_exit!(20);
+    ]
+    trg_len = w0 & 4294967295;
+    if ((trg_len + 72) > buf_bytes) [
+        sys_exit!(20);
+    ]
+
     ctx = arena_alloc_words!(arena, 20);
     ctx@[0] = arena;
 
     sym_table = arena_alloc_words!(arena, 16384);
     sym_count_cell = arena_alloc_words!(arena, 1);
 
-    lut = arena_alloc_words!(arena, 256);
-    lexer_init!(arena, sym_table, 4096, sym_count_cell, lut);
-
-    pratt_lut = arena_alloc_words!(arena, 256);
+    pratt_lut = arena_alloc_words!(arena, 32);
     parser_init_pratt!(pratt_lut);
 
     call_count_ptr = arena_alloc_words!(arena, 2);
 
     lex_state = arena_alloc_words!(arena, 6);
-    lex_state@[0] = src_buf;
-    lex_state@[1] = src_len;
+    lex_state@[0] = src_buf + 64;
+    lex_state@[1] = trg_len;
 
     global_scratch_tape = arena_alloc_words!(arena, 1048576);
 
@@ -30,7 +40,6 @@ fn compile_core!(src_buf, src_len, arena) [
     ctx@[4]  = sym_table;
     ctx@[5]  = 4096;
     ctx@[6]  = sym_count_cell;
-    ctx@[7]  = lut;
     ctx@[9]  = call_count_ptr + 8;
     ctx@[10] = arena_alloc_words!(arena, 4096);
     ctx@[12] = arena_alloc_words!(arena, 16384);
@@ -38,8 +47,6 @@ fn compile_core!(src_buf, src_len, arena) [
     ctx@[14] = arena_init!(arena_alloc_words!(arena, 131072), 1048576);
     ctx@[15] = arena_alloc_words!(arena, 65536);
     ctx@[16] = arena_alloc_words!(arena, 8192);
-    ctx@[17] = 0;
-    ctx@[18] = 0;
     ctx@[19] = global_scratch_tape;
 
     parser_advance!(ctx);

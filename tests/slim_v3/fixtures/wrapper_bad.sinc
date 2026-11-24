@@ -1,4 +1,4 @@
-// fixture: wrapper_bad.sinc — trivial 1:1 wrapper
+// fixture: wrapper_bad.sinc -- trivial 1:1 wrapper
 fn compute(x, y) [
     ret x + y;
 ]

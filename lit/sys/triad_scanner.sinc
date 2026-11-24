@@ -57,21 +57,19 @@ fn lit_hash_triad_folder!(root_ptr, root_len, sub_word, sub_len, arena) [
                 ]
             ]
 
-            if (name_len > 5) [
-                is_sinc = 0;
-                if (name_ptr@[(name_len - 5) * 1] == 46) [
-                    if (name_ptr@[(name_len - 4) * 1] == 115) [
-                        if (name_ptr@[(name_len - 3) * 1] == 105) [
-                            if (name_ptr@[(name_len - 2) * 1] == 110) [
-                                if (name_ptr@[(name_len - 1) * 1] == 99) [
-                                    is_sinc = 1;
-                                ]
+            if (name_len > 4) [
+                is_trg = 0;
+                if (name_ptr@[(name_len - 4) * 1] == 46) [
+                    if (name_ptr@[(name_len - 3) * 1] == 116) [
+                        if (name_ptr@[(name_len - 2) * 1] == 114) [
+                            if (name_ptr@[(name_len - 1) * 1] == 103) [
+                                is_trg = 1;
                             ]
                         ]
                     ]
                 ]
 
-                if (is_sinc == 1) [
+                if (is_trg == 1) [
                     loop (ck = 0 .. name_len) [
                         file_path@[(dir_len + 1 + ck) * 1] = name_ptr@[ck * 1];
                     ]

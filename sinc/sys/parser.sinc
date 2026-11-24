@@ -1,10 +1,8 @@
 // ==========================================
 // sinc/sys/parser.sinc
 // SINC Compiler: Self-Hosted Recursive Descent Parser
-// Token IDs: Defined in sinc/data/lexer.sinc (EOF=0, FN=1, RET=3, CONST=4, IF=5,
-//            LOOP=6, ELSE=7, EXTERN=8, IDENT=9, NUMBER=10, LPAREN=11, RPAREN=12,
-//            LBRACKET=13, RBRACKET=14, COMMA=15, DOT=16, EQUAL=17, SEMI=22,
-//            AT=28, DOTDOT=37; operators & punctuation 18..36)
+// Token IDs: Native TRG bytes (EOF=0, FN=1..EXTERN=8, IDENT=9, NUMBER=10,
+//            Delimiters 244..253, Operators 112..127, Compounds 128..132)
 // ==========================================
 
 // ProgramDescriptor layout offsets
@@ -21,25 +19,28 @@ const PROG_FUNC_BY_SYM  = 7;
 fn parser_advance!(ctx) [
     state     = ctx@[2];
     out_token = ctx@[3];
-    lexer_next_token!(state, ctx@[4], ctx@[5], ctx@[6], out_token, ctx@[7]);
-    if ((out_token.TOK_TYPE == 9) & (state.LEX_CURSOR < state.LEX_SRC_LEN) & (state.LEX_SRC_PTR@[state.LEX_CURSOR * 1] == 58)) [
-        sym_id           = out_token.TOK_VAL;
-        tok_flags        = out_token.TOK_FLAGS;
-        state.LEX_CURSOR = state.LEX_CURSOR + 1;
-        lexer_next_token!(state, ctx@[4], ctx@[5], ctx@[6], out_token, ctx@[7]);
-        b_val = out_token.TOK_VAL;
-        if (out_token.TOK_TYPE == 9) [
-            const_tbl = ctx@[10];
-            c_idx     = b_val * 2;
-            v_idx     = c_idx + 1;
-            b_val     = const_tbl@[c_idx] * const_tbl@[v_idx];
-        ]
-        if ((b_val < 1) | ((out_token.TOK_TYPE != 9) & (out_token.TOK_TYPE != 10))) [
-            out_token.TOK_TYPE = 36;
-        ] else [
-            out_token.TOK_TYPE  = 9;
-            out_token.TOK_VAL   = sym_id;
-            out_token.TOK_FLAGS = tok_flags | (b_val << 32);
+    lexer_next_token!(state, ctx@[4], ctx@[5], ctx@[6], out_token);
+    if (out_token.TOK_TYPE == 9) [
+        cursor = state.LEX_CURSOR;
+        if (state.LEX_SRC_PTR@[cursor * 1] == 251) [
+            sym_id           = out_token.TOK_VAL;
+            tok_flags        = out_token.TOK_FLAGS;
+            state.LEX_CURSOR = cursor + 1;
+            lexer_next_token!(state, ctx@[4], ctx@[5], ctx@[6], out_token);
+            b_val = out_token.TOK_VAL;
+            if (out_token.TOK_TYPE == 9) [
+                const_tbl = ctx@[10];
+                c_idx     = b_val * 2;
+                v_idx     = c_idx + 1;
+                b_val     = const_tbl@[c_idx] * const_tbl@[v_idx];
+            ]
+            if ((b_val < 1) | ((out_token.TOK_TYPE != 9) & (out_token.TOK_TYPE != 10))) [
+                out_token.TOK_TYPE = 36;
+            ] else [
+                out_token.TOK_TYPE  = 9;
+                out_token.TOK_VAL   = sym_id;
+                out_token.TOK_FLAGS = tok_flags | (b_val << 32);
+            ]
         ]
     ]
     ret out_token;
@@ -52,7 +53,7 @@ fn parse_ret!(ctx, bindings, inst_count) [
     parser_advance!(ctx);
     packed = parse_expr!(0, ctx, bindings, inst_count);
 
-    if (ctx@[3].TOK_TYPE != 22) [
+    if (ctx@[3].TOK_TYPE != 250) [
         sys_exit!(5);
     ]
     parser_advance!(ctx);
@@ -66,7 +67,7 @@ fn parse_ret!(ctx, bindings, inst_count) [
 fn parse_loop!(ctx, bindings, inst_count) [
     out_token = parser_advance!(ctx);
     has_paren = 0;
-    if (out_token.TOK_TYPE == 11) [
+    if (out_token.TOK_TYPE == 244) [
         has_paren = 1;
         parser_advance!(ctx);
     ]
@@ -79,7 +80,7 @@ fn parse_loop!(ctx, bindings, inst_count) [
     type_payload = tok_flags >> 32;
     parser_advance!(ctx);
 
-    if (out_token.TOK_TYPE != 17) [
+    if (out_token.TOK_TYPE != 117) [
         sys_exit!(7);
     ]
     parser_advance!(ctx);
@@ -93,7 +94,7 @@ fn parse_loop!(ctx, bindings, inst_count) [
         start_k = ctx@[8]@[(inst_count * 4 - 2)] & 4294967295;
     ]
 
-    if (out_token.TOK_TYPE != 37) [
+    if (out_token.TOK_TYPE != 128) [
         sys_exit!(7);
     ]
     parser_advance!(ctx);
@@ -108,7 +109,7 @@ fn parse_loop!(ctx, bindings, inst_count) [
     ]
 
     if (has_paren != 0) [
-        if (out_token.TOK_TYPE != 12) [
+        if (out_token.TOK_TYPE != 245) [
             sys_exit!(7);
         ]
         parser_advance!(ctx);
@@ -161,13 +162,13 @@ fn parse_const_decl!(ctx) [
     sym_id = out_token.TOK_VAL;
     parser_advance!(ctx);
 
-    if (out_token.TOK_TYPE != 17) [
+    if (out_token.TOK_TYPE != 117) [
         sys_exit!(2);
     ]
     parser_advance!(ctx);
 
     is_neg = 0;
-    if (out_token.TOK_TYPE == 19) [
+    if (out_token.TOK_TYPE == 113) [
         is_neg = 1;
         parser_advance!(ctx);
     ]
@@ -181,7 +182,7 @@ fn parse_const_decl!(ctx) [
     ]
     parser_advance!(ctx);
 
-    if (out_token.TOK_TYPE != 22) [
+    if (out_token.TOK_TYPE != 250) [
         sys_exit!(4);
     ]
     parser_advance!(ctx);
@@ -207,17 +208,17 @@ fn parse_extern!(ctx, ext_cnt, func_by_sym) [
     sym_id = out_token.TOK_VAL;
     parser_advance!(ctx);
 
-    if (out_token.TOK_TYPE != 11) [
+    if (out_token.TOK_TYPE != 244) [
         sys_exit!(3);
     ]
     parser_advance!(ctx);
 
-    if (out_token.TOK_TYPE != 12) [
+    if (out_token.TOK_TYPE != 245) [
         sys_exit!(4);
     ]
     parser_advance!(ctx);
 
-    if (out_token.TOK_TYPE != 22) [
+    if (out_token.TOK_TYPE != 250) [
         sys_exit!(5);
     ]
     parser_advance!(ctx);
@@ -240,14 +241,14 @@ fn parse_extern!(ctx, ext_cnt, func_by_sym) [
 // ---------------------------------------------------------------------------
 fn parse_block!(ctx, bindings, inst_count) [
     out_token = ctx@[3];
-    if (out_token.TOK_TYPE != 13) [
+    if (out_token.TOK_TYPE != 246) [
         sys_exit!(7);
     ]
     parser_advance!(ctx);
 
     loop (i:1000000 = 0 .. 1000000) [
         tok_type = out_token.TOK_TYPE;
-        if (tok_type == 14) [
+        if (tok_type == 247) [
             parser_advance!(ctx);
             ret inst_count;
         ]
@@ -319,7 +320,7 @@ fn parse_assign_or_expr_stmt!(ctx, bindings, inst_count) [
     inst_count  = packed & 4294967295;
     lhs_val     = packed >> 32;
 
-    if (out_token.TOK_TYPE == 17) [
+    if (out_token.TOK_TYPE == 117) [
         lhs_count  = inst_count;
         ctx@[18]   = 0;
         parser_advance!(ctx);
@@ -358,7 +359,7 @@ fn parse_assign_or_expr_stmt!(ctx, bindings, inst_count) [
 
     ctx@[17] = 0;
     ctx@[18] = 0;
-    if (out_token.TOK_TYPE != 22) [
+    if (out_token.TOK_TYPE != 250) [
         sys_exit!(5);
     ]
     parser_advance!(ctx);
@@ -371,7 +372,7 @@ fn parse_assign_or_expr_stmt!(ctx, bindings, inst_count) [
 fn parse_function_params!(ctx, bindings) [
     out_tok = ctx@[3];
     loop (p:1000 = 0 .. 1000) [
-        if (out_tok.TOK_TYPE == 12) [
+        if (out_tok.TOK_TYPE == 245) [
             ret 0;
         ]
         if (out_tok.TOK_TYPE == 0) [
@@ -387,14 +388,14 @@ fn parse_function_params!(ctx, bindings) [
         type_payload = tok_flags >> 32;
         is_ptr       = type_payload > 0;
         parser_advance!(ctx);
-        if (out_tok.TOK_TYPE == 28) [
+        if (out_tok.TOK_TYPE == 126) [
             is_ptr = 1;
             parser_advance!(ctx);
         ]
 
         bindings_touch!(ctx@[15], bindings, sym, 1, lin & is_ptr, type_payload, fresh_val!(ctx@[9]));
 
-        if (out_tok.TOK_TYPE == 15) [
+        if (out_tok.TOK_TYPE == 252) [
             parser_advance!(ctx);
         ]
     ]
@@ -418,7 +419,7 @@ fn parse_function!(ctx) [
     ctx@[11]    = out_token.TOK_FLAGS & 2;
     parser_advance!(ctx);
 
-    if (out_token.TOK_TYPE != 11) [
+    if (out_token.TOK_TYPE != 244) [
         sys_exit!(2);
     ]
     parser_advance!(ctx);
@@ -433,7 +434,7 @@ fn parse_function!(ctx) [
 
     param_cnt = val_id_counter_ptr@[0];
 
-    if (out_token.TOK_TYPE != 12) [
+    if (out_token.TOK_TYPE != 245) [
         sys_exit!(3);
     ]
     parser_advance!(ctx);

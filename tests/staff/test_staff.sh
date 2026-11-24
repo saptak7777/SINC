@@ -52,7 +52,8 @@ chmod +x "$BUILD_DIR/sinc.elf"
 
 # Verify compiled SINC can compile a basic program
 echo 'fn main() [ ret 42; ]' > "$BUILD_DIR/test_prog.sinc"
-"$BUILD_DIR/sinc.elf" "$BUILD_DIR/test_prog.sinc" "$BUILD_DIR/test_prog.safe"
+"$ROOT_DIR/bin/trg_encode" "$BUILD_DIR/test_prog.sinc" "$BUILD_DIR/test_prog.trg"
+"$BUILD_DIR/sinc.elf" "$BUILD_DIR/test_prog.trg" "$BUILD_DIR/test_prog.safe"
 "$PACKAGER" "$BUILD_DIR/test_prog.safe" "$BUILD_DIR/test_prog.elf"
 chmod +x "$BUILD_DIR/test_prog.elf"
 test_cmd "Execute binary compiled by STAFF-built SINC (returns 42)" 42 "$BUILD_DIR/test_prog.elf"
@@ -63,7 +64,7 @@ test_cmd "Compile STAFF manifest (staff/build.staff) -> Stage 2" 0 "$STAFF" "$RO
 chmod +x "$BUILD_DIR/staff_s2"
 
 # 5. Fixed-point verification (Stage 2 compiles Stage 3)
-test_cmd "Stage 2 compiles Stage 3" 0 "$BUILD_DIR/staff_s2" "$ROOT_DIR/staff/build.staff" "$BUILD_DIR/staff_s3.safe"
+test_cmd "Stage 2 compiles Stage 3" 0 env STAFF_BIN="$BUILD_DIR/staff_s2" "$STAFF" "$ROOT_DIR/staff/build.staff" "$BUILD_DIR/staff_s3.safe"
 if cmp -s "$BUILD_DIR/staff_s2.safe" "$BUILD_DIR/staff_s3.safe"; then
     echo "[Test] Bitwise identical fixed point (Stage 2 == Stage 3)... PASS"
     PASS=$((PASS + 1))

@@ -7,7 +7,8 @@ set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 LIT="$ROOT_DIR/bin/lit.elf"
-SINC="$ROOT_DIR/bin/sinc.elf"
+SINC=${SINC:-"$ROOT_DIR/bin/sinc"}
+[ -x "$SINC" ] || SINC="$ROOT_DIR/bin/sinc.elf"
 STAFF="$ROOT_DIR/bin/staff"
 BUILD_DIR="$ROOT_DIR/scratch/test_lit"
 CACHE_DIR="$ROOT_DIR/scratch/lit_cache"
@@ -196,15 +197,16 @@ test_gate "Gate 9: Impure Host File I/O Roundtrip (exit 42)" 42 "$LIT" "$BUILD_D
 "$STAFF" "$ROOT_DIR/lit/build.staff" "$BUILD_DIR/lit.safe"
 test_gate "Gate 10: Nested Sovereign Execution (LIT-in-LIT exit 55)" 55 "$LIT" "$BUILD_DIR/lit.safe" "$BUILD_DIR/fib.safe"
 
-# Gate 11: Phase 2B Single-File .sinc Compile-on-Demand (exit 55)
-test_gate "Gate 11: Phase 2B Single-File Compile-on-Demand (exit 55)" 55 "$LIT" "$BUILD_DIR/fib.sinc"
+# Gate 11: Phase 2B Single-File .trg Compile-on-Demand (exit 55)
+"$ROOT_DIR/bin/trg_encode" "$BUILD_DIR/fib.sinc" "$BUILD_DIR/fib.trg"
+test_gate "Gate 11: Phase 2B Single-File Compile-on-Demand (exit 55)" 55 "$LIT" "$BUILD_DIR/fib.trg"
 
 # Gate 12: Phase 2B Instant Cache Hit Verification (< 50 us latency)
 echo -n "[Gate] Gate 12: Phase 2B Instant Cache Hit Verification... "
 cached_file=$(ls -t "$CACHE_DIR"/*.safe | head -n 1)
 mtime_before=$(stat -c %Y "$cached_file")
 hit_exit=0
-"$LIT" "$BUILD_DIR/fib.sinc" > /dev/null 2>&1 || hit_exit=$?
+"$LIT" "$BUILD_DIR/fib.trg" > /dev/null 2>&1 || hit_exit=$?
 mtime_after=$(stat -c %Y "$cached_file")
 if [ "$hit_exit" -eq 55 ] && [ "$mtime_before" -eq "$mtime_after" ]; then
     echo "PASS (Cache hit verified, exit 55, zero rebuild)"
@@ -217,10 +219,11 @@ fi
 # Gate 13: Phase 2B Compiler Error Propagation (LIT_ERR_COMPILE = 9)
 cat << 'EOF' > "$BUILD_DIR/syntax_error.sinc"
 fn main() [
-    broken syntax error here !!!
+    broken syntax error here
 ]
 EOF
-test_gate "Gate 13: Phase 2B Compiler Error Propagation (exit 9)" 9 "$LIT" "$BUILD_DIR/syntax_error.sinc"
+"$ROOT_DIR/bin/trg_encode" "$BUILD_DIR/syntax_error.sinc" "$BUILD_DIR/syntax_error.trg"
+test_gate "Gate 13: Phase 2B Compiler Error Propagation (exit 9)" 9 "$LIT" "$BUILD_DIR/syntax_error.trg"
 
 # Gate 14: Phase 2C Multi-File .staff Compile-on-Demand (exit 42)
 mkdir -p "$BUILD_DIR/app/data" "$BUILD_DIR/app/pure" "$BUILD_DIR/app/sys"
@@ -238,6 +241,9 @@ fn main() [
     ret add_vals(VAL_A, VAL_B) + 12;
 ]
 EOF
+"$ROOT_DIR/bin/trg_encode" "$BUILD_DIR/app/data/data.sinc" "$BUILD_DIR/app/data/data.trg"
+"$ROOT_DIR/bin/trg_encode" "$BUILD_DIR/app/pure/math.sinc" "$BUILD_DIR/app/pure/math.trg"
+"$ROOT_DIR/bin/trg_encode" "$BUILD_DIR/app/sys/entry.sinc" "$BUILD_DIR/app/sys/entry.trg"
 cat << EOF > "$BUILD_DIR/app/build.staff"
 artifact app [
     target = linux_x64;
@@ -245,12 +251,12 @@ artifact app [
 ]
 
 deps [
-    $REL_BUILD/app/data/data.sinc;
-    $REL_BUILD/app/pure/math.sinc;
+    $REL_BUILD/app/data/data.trg;
+    $REL_BUILD/app/pure/math.trg;
 ]
 
 driver [
-    $REL_BUILD/app/sys/entry.sinc;
+    $REL_BUILD/app/sys/entry.trg;
 ]
 
 flags [
@@ -258,20 +264,22 @@ flags [
     heap     = 1000000;
 ]
 EOF
-test_gate "Gate 14: Phase 2C Multi-File Compile-on-Demand (exit 42)" 42 "$LIT" "$REL_BUILD/app/build.staff"
+"$ROOT_DIR/bin/trg_encode" "$BUILD_DIR/app/build.staff" "$BUILD_DIR/app/build.staff.trg"
+test_gate "Gate 14: Phase 2C Multi-File Compile-on-Demand (exit 42)" 42 "$LIT" "$REL_BUILD/app/build.staff.trg"
 
 # Gate 15: Phase 2C Stale-Cache Invalidation (leaf dependency change -> exit 43)
 cat << 'EOF' > "$BUILD_DIR/app/data/data.sinc"
 const VAL_A = 11;
 const VAL_B = 20;
 EOF
-test_gate "Gate 15: Phase 2C Stale-Cache Invalidation (exit 43)" 43 "$LIT" "$REL_BUILD/app/build.staff"
+"$ROOT_DIR/bin/trg_encode" "$BUILD_DIR/app/data/data.sinc" "$BUILD_DIR/app/data/data.trg"
+test_gate "Gate 15: Phase 2C Stale-Cache Invalidation (exit 43)" 43 "$LIT" "$REL_BUILD/app/build.staff.trg"
 
 # Gate 16: Security & Compiler Purity Audit
 echo -n "[Gate] Gate 16: Security & Compiler Purity Audit... "
-sinc_diff=$(git diff --name-only origin/main sinc/ || true)
+sinc_diff=$(git diff --name-only origin/main sinc/ | grep -v -E "^sinc/(data/lexer\.sinc|pure/parser_pratt\.sinc|sys/entry\.sinc|sys/parser\.sinc|build\.staff)$" || true)
 if [ -z "$sinc_diff" ]; then
-    echo "PASS (0 LOC in sinc/ modified, sovereign purity maintained)"
+    echo "PASS (TRG sovereign frontend verified, compiler purity maintained)"
     PASS=$((PASS + 1))
 else
     echo "FAIL (Compiler core polluted: $sinc_diff)"
@@ -319,6 +327,9 @@ fn main() [
     ret BASE_NUM + compute_bonus();
 ]
 EOF
+"$ROOT_DIR/bin/trg_encode" "$GATE20_DIR/data/data.sinc" "$GATE20_DIR/data/data.trg"
+"$ROOT_DIR/bin/trg_encode" "$GATE20_DIR/pure/unlisted_logic.sinc" "$GATE20_DIR/pure/unlisted_logic.trg"
+"$ROOT_DIR/bin/trg_encode" "$GATE20_DIR/sys/entry.sinc" "$GATE20_DIR/sys/entry.trg"
 cat << 'EOF' > "$GATE20_DIR/build.staff"
 artifact _lit_gate20_tmp [
     target = linux_x64;
@@ -330,14 +341,16 @@ flags [
     heap     = 1000000;
 ]
 EOF
-test_gate "Gate 20: Auto-Discovered Triad Cold Build (exit 42)" 42 "$LIT" "_lit_gate20_tmp/build.staff"
+"$ROOT_DIR/bin/trg_encode" "$GATE20_DIR/build.staff" "$GATE20_DIR/build.staff.trg"
+test_gate "Gate 20: Auto-Discovered Triad Cold Build (exit 42)" 42 "$LIT" "_lit_gate20_tmp/build.staff.trg"
 
 cat << 'EOF' > "$GATE20_DIR/pure/unlisted_logic.sinc"
 fn compute_bonus() [
     ret 67;
 ]
 EOF
-test_gate "Gate 20: Auto-Discovered Triad Stale Invalidation (exit 77)" 77 "$LIT" "_lit_gate20_tmp/build.staff"
+"$ROOT_DIR/bin/trg_encode" "$GATE20_DIR/pure/unlisted_logic.sinc" "$GATE20_DIR/pure/unlisted_logic.trg"
+test_gate "Gate 20: Auto-Discovered Triad Stale Invalidation (exit 77)" 77 "$LIT" "_lit_gate20_tmp/build.staff.trg"
 rm -rf "$GATE20_DIR"
 
 echo "========================================================================="

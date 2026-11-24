@@ -1,5 +1,5 @@
 // EXPECT: 180
-// Test: Phase 5 LICM — Topological cascade hoisting of dependent invariant math
+// Test: Phase 5 LICM -- Topological cascade hoisting of dependent invariant math
 fn main() [
     a = 6;
     b = 4;

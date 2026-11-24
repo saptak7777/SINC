@@ -1,4 +1,4 @@
-// fixture: splinter_clean.sinc — independent state initialization
+// fixture: splinter_clean.sinc -- independent state initialization
 fn main(ctx@) [
     pos = 0;
     count = 0;

@@ -13,7 +13,7 @@ const SAFE_HDR_MAIN_OFFSET = 2;
 const SAFE_HDR_ALIGNMENT   = 3;
 
 const LIT_TARGET_SAFE      = 0;
-const LIT_TARGET_SINC      = 1;
+const LIT_TARGET_TRG       = 1;
 const LIT_TARGET_STAFF     = 2;
 
 const LIT_EXIT_OK          = 0;

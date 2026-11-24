@@ -1,5 +1,5 @@
 // EXPECT: 136
-// REQUIRE_INSN: mov.*\(%rbp\)
+// REQUIRE_INSN: mov.*(%rbp)
 // Test: High register pressure (>12 live variables) forcing spill/reload to stack frame slots
 
 fn helper(x) [

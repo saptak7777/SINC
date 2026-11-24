@@ -27,12 +27,14 @@ staff/
 
 ---
 
-## 3. CLI Usage
+## 3. CLI Usage & Architecture
 
-STAFF takes the path to your project manifest and writes out a `.safe` machine code payload:
+STAFF provides a two-layer build architecture:
+1. **`bin/staff.elf` (Native TRG Core)**: Compiled SINC binary operating directly on sovereign binary TRG containers (`.staff.trg` and `.trg` files).
+2. **`bin/staff` (Linux Host Compatibility Adapter)**: Shell wrapper relying on Bash, tar, find, and sed to mirror human-readable `.staff` projects into temporary TRG workspaces. Direct `.staff.trg` arguments bypass conversion and invoke `bin/staff.elf` directly.
 
 ```text
-Usage: ./bin/staff <manifest.staff> [output.safe]
+Usage: ./bin/staff <manifest.staff|manifest.staff.trg> [output.safe]
 ```
 
 ### Compiling a Project

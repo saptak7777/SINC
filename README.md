@@ -1,5 +1,8 @@
 # SINC
 
+> [!NOTE]
+> **Branch Notice (`extremist`)**: This branch is dedicated to experimental design and live-runtime prototyping for a custom OS (SOLOS / SHARK exokernel substrate) and TRG container pipeline.
+
 **SINC** is an experimental, self-hosted systems language and compiler that compiles directly to x86-64 machine code with zero external dependencies (no libc, no LLVM, no external assembler or linker).
 
 Built to explore **Speed, Safety, and Simplicity (SSS)**—checking side effects, pointer ownership, and buffer bounds at compile time while keeping the entire compiler small enough (~4,200 lines of SINC, ~71 KB binary, ~4 ms self-build) for one person to understand end to end.
@@ -43,14 +46,14 @@ SINC runs natively on Linux x86-64. The repository includes pre-built bootstrap 
 
 ### 1. Compile and Run a Single File
 
-SINC uses a two-step toolchain: `sinc.elf` compiles source into a raw x86-64 machine code payload (`.safe`), and `packager_bin` wraps it into an executable Linux ELF.
+SINC uses a two-step toolchain: `bin/sinc` compiles source (`.sinc` or `.trg`) into a raw x86-64 machine code payload (`.safe`), and `packager_bin` wraps it into an executable Linux ELF.
 
 ```bash
 # 1. Write a minimal systems routine
 echo "fn main() [ ret 42; ]" > target.sinc
 
-# 2. Compile to a .safe machine code payload
-./bin/sinc.elf target.sinc target.safe
+# 2. Compile to a .safe machine code payload via the user-facing compiler
+./bin/sinc target.sinc target.safe
 
 # 3. Package into a standalone executable and run
 ./bin/packager_bin target.safe ./target
@@ -58,6 +61,11 @@ chmod +x ./target
 ./target
 echo "Exit: $?" # prints 42
 ```
+
+> **Compiler Architecture & Interface Split:**
+> * **`bin/sinc` (User-Facing Compiler Driver)**: Accepts standard UTF-8 `.sinc` and `.trg` files. For `.sinc` source files, it encodes them to TRG on the fly via `bin/trg_encode`, then invokes `bin/sinc.elf`.
+> * **`bin/sinc.elf` (TRG Compiler Core)**: Validates the 64-byte TRG container header (`Magic == 'T'`, `Flags == 0`, `Script A == 1`) and enforces extent boundary checks with zero UTF-8 code inside. Rejects raw UTF-8 `.sinc` with `Exit 20`.
+> * **`bin/trg_encode` (TRG Encoder)**: Standalone tool that compiles UTF-8 into validated TRG containers with fail-fast comment and character bounds verification (`Exit 21`).
 
 > **Disassembly Note:** `packager_bin` emits lean, stripped headerless ELF binaries (`e_shnum = 0`) where the entrypoint is located at file offset `0x78` (`_start`). When inspecting compiled binaries with GNU `objdump`, pass `--start-address=0x78` (e.g. `objdump -d --start-address=0x78 ./target`) or use raw binary mode (`objdump -D -b binary -m i386:x86-64 target`).
 

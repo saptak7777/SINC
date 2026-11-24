@@ -16,7 +16,6 @@ deps [
     steel/data/slice.sinc;
     steel/pure/hash.sinc;
     steel/pure/sym_table.sinc;
-    steel/pure/ctype.sinc;
     sinc/data/lexer.sinc;
     sinc/data/parser_ir.sinc;
     sinc/data/tape_ops.sinc;

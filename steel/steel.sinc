@@ -10,6 +10,6 @@ import steel/pure/fast_math;
 import steel/data/slice;
 import steel/data/hash;
 import steel/data/sym_table;
-import steel/data/ctype;
+import steel/pure/utf8_to_trg;
 import steel/data/bitset;
 import steel/data/vec;

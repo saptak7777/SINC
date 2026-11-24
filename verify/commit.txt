@@ -1,12 +1,10 @@
-Commit: bef2202efb1fd571f84aa4bb188e1d0c7146dcc8
-Short: bef2202
-Message: fix(backend): size call_fixups from post-opt tape length and pass via register
+Commit: a19a43c23e4dcae252436fd54856221056f7fcd1
+Short: a19a43c
+Message: feat(trg): TRG pipeline, container streaming, and host adapters for SINC, STAFF, and LIT
 
-- Replace parse-time call count with exact post-optimization total_insts structural bound
-- Re-use warm post-optimization pipeline loop in sinc/sys/entry.sinc to accumulate total_insts
-- Pass total_insts directly via Spine ABI register RDI into compile_program!
-- Eliminate PROG_CALL_COUNT from prog_desc, shift PROG_FUNC_BY_SYM to slot 7, and shrink descriptor to 8 words
-- Delete call_count = prog_desc@[7] in sinc/pure/x86_64.sinc (-1 Net LOC on sinc/pure/)
-- Fixes buffer overrun in call_fixups when ir_unroll! expands function calls in loop bodies
-- Bootstrap and promote converged Stage-3 binary to bin/staff (15/15 integration tests passed)
-- Golden parity audit verified across all 439 checks (24 benchmarks bitwise identical)
+- Implement pure binary TRG compiler pipeline (7 keywords, 7 passes)
+- Add genuine silicon SWAR container validation (Magic 'T', Script 1, Flags 0)
+- Upgrade STAFF and LIT to pure TRG container streaming and manifest parsing
+- Provide bin/sinc and bin/staff as Linux Host Compatibility Adapters
+- Track verified bootstrap binaries (bin/*.elf, bin/*.safe) with executable permissions (100755)
+- Pass all release gates (15/15 STAFF, 21/21 LIT, 6/6 TRG, 134/134 native, 24/24 GCC benchmarks)

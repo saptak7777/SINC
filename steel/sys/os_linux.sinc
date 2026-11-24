@@ -99,3 +99,38 @@ fn steel_proc_peek_word!(pid, addr) [
 fn steel_proc_peek_regs!(pid, regs_buf) [
     ret 0;
 ]
+
+// 9. Sovereign TRG Path Decoder: Translates TRG internal string to Linux ASCII path
+fn os_trg_to_path!(trg_path, trg_len, out_ascii) [
+    loop (i:256 = 0 .. trg_len) [
+        b = trg_path@[i * 1];
+        ch = b;
+        if (b < 26) [
+            ch = 65 + b;
+        ] else [
+            if (b < 52) [
+                ch = 97 + (b - 26);
+            ] else [
+                if (b < 62) [
+                    ch = 48 + (b - 52);
+                ] else [
+                    if (b == 115) [
+                        ch = 47;
+                    ]
+                    if (b == 253) [
+                        ch = 46;
+                    ]
+                    if (b == 243) [
+                        ch = 95;
+                    ]
+                    if (b == 113) [
+                        ch = 45;
+                    ]
+                ]
+            ]
+        ]
+        out_ascii@[i * 1] = ch;
+    ]
+    out_ascii@[trg_len * 1] = 0;
+    ret 0;
+]

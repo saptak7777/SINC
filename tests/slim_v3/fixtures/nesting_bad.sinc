@@ -1,4 +1,4 @@
-// fixture: nesting_bad.sinc — deep call nesting
+// fixture: nesting_bad.sinc -- deep call nesting
 fn f1(x) [
     ret x;
 ]

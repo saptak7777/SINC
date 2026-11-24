@@ -1,4 +1,4 @@
-// fixture: clean_v3.sinc — no v3 violations
+// fixture: clean_v3.sinc -- no v3 violations
 // Named constant used, no self-assign, no splinter, no raw literals
 const INVALID_SLOT = 65535;
 

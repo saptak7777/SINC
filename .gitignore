@@ -13,11 +13,15 @@ core
 # Release bootstrap toolchain binaries
 !bin/
 !bin/sinc.elf
+!bin/sinc.safe
 !bin/staff
+!bin/staff.elf
+!bin/staff.safe
 !bin/packager_bin
 !bin/packager_o
 !bin/slim.elf
 !bin/lit.elf
+!bin/lit.safe
 
 # Test & benchmark temporary files
 temp_*

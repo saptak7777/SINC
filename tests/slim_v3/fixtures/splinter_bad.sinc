@@ -1,4 +1,4 @@
-// fixture: splinter_bad.sinc — triggers [SPLINTER]
+// fixture: splinter_bad.sinc -- triggers [SPLINTER]
 fn main(ctx@) [
     rex_r = 0;
     rex_b = 0;

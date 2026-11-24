@@ -4,7 +4,7 @@
 // ==========================================
 
 fn is_manifest_ws(c) [
-    if ((c == 32) | (c == 9) | (c == 10) | (c == 13)) [
+    if ((c > 239) & (c < 243)) [
         ret 1;
     ]
     ret 0;
@@ -19,8 +19,8 @@ fn parse_staff_artifact_name!(man_buf, man_len, out_name_buf) [
                 found_name = 1;
             ] else [
                 c = man_buf@[cursor * 1];
-                if ((c == 97) & (!((cursor + 8) > man_len))) [
-                    if ((man_buf@[(cursor + 1) * 1] == 114) & (man_buf@[(cursor + 2) * 1] == 116) & (man_buf@[(cursor + 3) * 1] == 105) & (man_buf@[(cursor + 4) * 1] == 102) & (man_buf@[(cursor + 5) * 1] == 97) & (man_buf@[(cursor + 6) * 1] == 99) & (man_buf@[(cursor + 7) * 1] == 116)) [
+                if ((c == 26) & (!((cursor + 8) > man_len))) [
+                    if ((man_buf@[(cursor + 1) * 1] == 43) & (man_buf@[(cursor + 2) * 1] == 45) & (man_buf@[(cursor + 3) * 1] == 34) & (man_buf@[(cursor + 4) * 1] == 31) & (man_buf@[(cursor + 5) * 1] == 26) & (man_buf@[(cursor + 6) * 1] == 28) & (man_buf@[(cursor + 7) * 1] == 45)) [
                         cursor = cursor + 8;
                         skip_ws = 1;
                         loop (ws = 0 .. 100) [
@@ -38,7 +38,7 @@ fn parse_staff_artifact_name!(man_buf, man_len, out_name_buf) [
                         loop (rn = 0 .. 100) [
                             if ((read_name != 0) & (cursor < man_len)) [
                                 nc = man_buf@[cursor * 1];
-                                if ((is_manifest_ws(nc) != 0) | (nc == 91)) [
+                                if ((is_manifest_ws(nc) != 0) | (nc == 246)) [
                                     read_name = 0;
                                 ] else [
                                     cursor = cursor + 1;
@@ -47,10 +47,7 @@ fn parse_staff_artifact_name!(man_buf, man_len, out_name_buf) [
                         ]
                         name_len = cursor - name_start;
                         if (name_len > 0) [
-                            loop (k = 0 .. name_len) [
-                                out_name_buf@[k * 1] = man_buf@[(name_start + k) * 1];
-                            ]
-                            out_name_buf@[name_len * 1] = 0;
+                            os_trg_to_path!(man_buf + name_start, name_len, out_name_buf);
                             ret name_len;
                         ]
                     ]
@@ -73,33 +70,34 @@ fn parse_staff_deps!(man_buf, man_len, deps_out) [
 
         c = man_buf@[cursor * 1];
 
-        if ((c == 47) & ((cursor + 1) < man_len)) [
+        if ((c == 115) & ((cursor + 1) < man_len)) [
             next_c = man_buf@[(cursor + 1) * 1];
-            if (next_c == 47) [
+            if (next_c == 115) [
                 cursor = cursor + 2;
                 in_comm = 1;
                 loop (skip = 0 .. 10000) [
                     if ((in_comm != 0) & (cursor < man_len)) [
                         sc = man_buf@[cursor * 1];
                         cursor = cursor + 1;
-                        if ((sc == 10) | (sc == 13)) [
+                        if (sc == 241) [
                             in_comm = 0;
                         ]
                     ]
                 ]
-                c = 32;
+                c = 240;
             ]
         ]
 
         is_section = 0;
-        if ((c == 100) & (!((cursor + 4) > man_len))) [
-            if ((man_buf@[(cursor + 1) * 1] == 101) & (man_buf@[(cursor + 2) * 1] == 112) & (man_buf@[(cursor + 3) * 1] == 115)) [
+        if ((c == 29) & (!((cursor + 4) > man_len))) [
+            if ((man_buf@[(cursor + 1) * 1] == 30) & (man_buf@[(cursor + 2) * 1] == 41) & (man_buf@[(cursor + 3) * 1] == 44)) [
                 is_section = 1;
                 cursor = cursor + 4;
             ]
         ]
-        if ((is_section == 0) & (c == 100) & (!((cursor + 6) > man_len))) [
-            if ((man_buf@[(cursor + 1) * 1] == 114) & (man_buf@[(cursor + 2) * 1] == 105) & (man_buf@[(cursor + 3) * 1] == 118) & (man_buf@[(cursor + 4) * 1] == 101) & (man_buf@[(cursor + 5) * 1] == 114)) [
+
+        if ((is_section == 0) & (c == 29) & (!((cursor + 6) > man_len))) [
+            if ((man_buf@[(cursor + 1) * 1] == 43) & (man_buf@[(cursor + 2) * 1] == 34) & (man_buf@[(cursor + 3) * 1] == 47) & (man_buf@[(cursor + 4) * 1] == 30) & (man_buf@[(cursor + 5) * 1] == 43)) [
                 is_section = 1;
                 cursor = cursor + 6;
             ]
@@ -111,7 +109,7 @@ fn parse_staff_deps!(man_buf, man_len, deps_out) [
                 if ((found_bracket == 0) & (cursor < man_len)) [
                     bc = man_buf@[cursor * 1];
                     cursor = cursor + 1;
-                    if (bc == 91) [
+                    if (bc == 246) [
                         found_bracket = 1;
                     ]
                 ]
@@ -128,15 +126,15 @@ fn parse_staff_deps!(man_buf, man_len, deps_out) [
                                 if (is_manifest_ws(ch) != 0) [
                                     cursor = cursor + 1;
                                 ] else [
-                                    if ((ch == 47) & ((cursor + 1) < man_len)) [
-                                        if (man_buf@[(cursor + 1) * 1] == 47) [
+                                    if ((ch == 115) & ((cursor + 1) < man_len)) [
+                                        if (man_buf@[(cursor + 1) * 1] == 115) [
                                             cursor = cursor + 2;
                                             c_comm = 1;
                                             loop (comm = 0 .. 1000) [
                                                 if ((c_comm != 0) & (cursor < man_len)) [
                                                     cc = man_buf@[cursor * 1];
                                                     cursor = cursor + 1;
-                                                    if ((cc == 10) | (cc == 13)) [
+                                                    if (cc == 241) [
                                                         c_comm = 0;
                                                     ]
                                                 ]
@@ -153,7 +151,7 @@ fn parse_staff_deps!(man_buf, man_len, deps_out) [
 
                         if (cursor < man_len) [
                             cur_ch = man_buf@[cursor * 1];
-                            if (cur_ch == 93) [
+                            if (cur_ch == 247) [
                                 in_list = 0;
                                 cursor = cursor + 1;
                             ] else [
@@ -163,7 +161,7 @@ fn parse_staff_deps!(man_buf, man_len, deps_out) [
                                     if ((read_tok != 0) & (cursor < man_len)) [
                                         tc = man_buf@[cursor * 1];
                                         cursor = cursor + 1;
-                                        if (tc == 59) [
+                                        if (tc == 250) [
                                             read_tok = 0;
                                         ]
                                     ]
@@ -182,7 +180,7 @@ fn parse_staff_deps!(man_buf, man_len, deps_out) [
                                 ]
 
                                 if (tok_len > 0) [
-                                    man_buf@[(tok_start + tok_len) * 1] = 0;
+                                    os_trg_to_path!(man_buf + tok_start, tok_len, man_buf + tok_start);
                                     deps_out@[count] = man_buf + tok_start;
                                     count = count + 1;
                                 ]

@@ -21,7 +21,7 @@ def find_bin(name):
         return bin_path
     return os.path.join(ROOT_DIR, name)
 
-SINC_BIN = find_bin("sinc.elf")
+SINC_BIN = find_bin("sinc") if os.path.isfile(find_bin("sinc")) else find_bin("sinc.elf")
 PACKAGER_BIN = find_bin("packager_bin")
 TMP_DIR = "/tmp/sinc_bench_24"
 

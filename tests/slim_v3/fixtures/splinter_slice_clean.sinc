@@ -1,4 +1,4 @@
-// fixture: splinter_slice_clean.sinc — idiomatic SINC slice pairs should pass cleanly
+// fixture: splinter_slice_clean.sinc -- idiomatic SINC slice pairs should pass cleanly
 fn main(ctx@) [
     buf_ptr = 0;
     buf_len = 0;

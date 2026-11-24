@@ -1,5 +1,5 @@
 // EXPECT: 230
-// Test: Phase 5 LICM — Spine invariant hoisted while conditional branch invariant remains un-hoisted
+// Test: Phase 5 LICM -- Spine invariant hoisted while conditional branch invariant remains un-hoisted
 fn main() [
     a = 10;
     b = 20;

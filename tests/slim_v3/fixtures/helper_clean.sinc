@@ -1,4 +1,4 @@
-// fixture: helper_clean.sinc — all functions are valid helpers or bridges
+// fixture: helper_clean.sinc -- all functions are valid helpers or bridges
 extern fn sys_read!();
 
 fn target(a, b) [

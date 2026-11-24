@@ -62,7 +62,7 @@ fn main!(argc, argv_ptr) [
         sys_exit!(res);
     ]
 
-    if (kind == LIT_TARGET_SINC) [
+    if (kind == LIT_TARGET_TRG) [
         fd = sys_open_read!(target_path);
         if (fd < 0) [
             sys_exit!(LIT_ERR_OPEN);
@@ -104,8 +104,21 @@ fn main!(argc, argv_ptr) [
         man_buf = arena_alloc_words!(arena, 131072);
         man_len = sys_read!(fd, man_buf, 1048576);
         sys_close!(fd);
-        if (man_len < 0) [
+        if (man_len < 64) [
             sys_exit!(LIT_ERR_SHORT_READ);
+        ]
+        w0 = man_buf@[0];
+        hi = w0 >> 32;
+        if ((hi & 4294902015) != 1409286145) [
+            sys_exit!(LIT_ERR_SHORT_READ);
+        ]
+        m_payload_len = w0 & 4294967295;
+        if ((m_payload_len + 64) > man_len) [
+            sys_exit!(LIT_ERR_SHORT_READ);
+        ]
+        pad_ptr = man_buf + 64 + m_payload_len;
+        loop (pad:8 = 0 .. 8) [
+            pad_ptr@[pad * 1] = 0;
         ]
 
         staff_path = arena_alloc_words!(arena, 2);
@@ -126,14 +139,14 @@ fn main!(argc, argv_ptr) [
         h = hash_fnv1a_update!(comp_seed, man_buf, man_len);
 
         art_name = arena_alloc_words!(arena, 64);
-        art_len = parse_staff_artifact_name!(man_buf, man_len, art_name);
+        art_len = parse_staff_artifact_name!(man_buf + 64, m_payload_len, art_name);
         if (art_len > 0) [
             h_art = lit_hash_triad_all!(art_name, art_len, arena);
             h = (h ^ h_art) * FNV_PRIME;
         ]
 
         deps_list = arena_alloc_words!(arena, 256);
-        deps_count = parse_staff_deps!(man_buf, man_len, deps_list);
+        deps_count = parse_staff_deps!(man_buf + 64, m_payload_len, deps_list);
         dbuf = arena_alloc_words!(arena, 262144);
 
         loop (di = 0 .. deps_count) [

@@ -1,0 +1,42 @@
+// ==========================================
+// tools/trg_encode.sinc
+// SINC Native Standalone UTF-8 -> TRG Encoder CLI
+// ==========================================
+
+fn main!(argc, argv_ptr) [
+    if (argc < 3) [
+        sys_exit!(1);
+    ]
+
+    sys_mmap!(1073741824);
+    arena = arena_init!(553648128, 1000000000);
+
+    in_path = get_argv!()@[1];
+    out_path = get_argv!()@[2];
+
+    fd_in = sys_open_read!(in_path);
+    if (fd_in < 0) [
+        sys_exit!(2);
+    ]
+    src_len = sys_read!(fd_in, 536870912, 10000000);
+    sys_close!(fd_in);
+    if (src_len < 0) [
+        sys_exit!(2);
+    ]
+
+    trg_lut = arena_alloc_words!(arena, 256);
+    trg_init_lut!(trg_lut);
+
+    trg_code_buf = arena_alloc_words!(arena, (src_len + 64 + 15) >> 3);
+    trg_total_len = utf8_to_trg_buf!(536870912, src_len, trg_code_buf, trg_lut);
+
+    fd_out = sys_open_write!(out_path);
+    if (fd_out < 0) [
+        sys_exit!(3);
+    ]
+    sys_write!(fd_out, trg_code_buf, trg_total_len);
+    sys_close!(fd_out);
+
+    sys_exit!(0);
+]
+

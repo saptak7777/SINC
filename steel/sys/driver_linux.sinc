@@ -4,7 +4,9 @@
 // ==========================================
 
 fn main!(argc, argv_ptr) [
-    if ((argc < 3)) [ sys_exit!(1); ]
+    if (argc < 3) [
+        sys_exit!(1);
+    ]
 
     sys_mmap!(1073741824);
 
@@ -17,10 +19,16 @@ fn main!(argc, argv_ptr) [
     ]
     src_len = sys_read!(fd_in, 536870912, 10000000);
     sys_close!(fd_in);
+    if (src_len < 0) [
+        sys_exit!(2);
+    ]
+
+    loop (pad:8 = 0 .. 8) [
+        536870912@[(src_len + pad) * 1] = 0;
+    ]
 
     arena = arena_init!(553648128, 1000000000);
-
-    out_payload = compile_core!(536870912, src_len, arena);
+    out_payload = compile_core!(536870912, src_len + 8, arena);
 
     fd_out = sys_open_write!(out_path);
     if (fd_out < 0) [

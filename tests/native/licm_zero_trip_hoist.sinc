@@ -1,5 +1,5 @@
 // EXPECT: 0
-// Test: Phase 5 LICM — Zero-trip loop with invariant math
+// Test: Phase 5 LICM -- Zero-trip loop with invariant math
 fn main() [
     x = 10;
     y = 20;

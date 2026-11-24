@@ -1,4 +1,4 @@
-// fixture: overwrite_bad.sinc — dead overwrite
+// fixture: overwrite_bad.sinc -- dead overwrite
 fn calc(a) [
     ret a * 2;
 ]
