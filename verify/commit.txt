@@ -1,5 +1,5 @@
-Commit: a19a43c23e4dcae252436fd54856221056f7fcd1
-Short: a19a43c
+Commit: ec81f7b6d46c602d35f7642e2d22127e91ea0625
+Short: ec81f7b
 Message: feat(trg): TRG pipeline, container streaming, and host adapters for SINC, STAFF, and LIT
 
 - Implement pure binary TRG compiler pipeline (7 keywords, 7 passes)

@@ -1,7 +1,7 @@
 # SINC
 
 > [!NOTE]
-> **Branch Notice (`extremist`)**: This branch is dedicated to experimental design and live-runtime prototyping for a custom OS (SOLOS / SHARK exokernel substrate) and TRG container pipeline.
+> **Branch Notice (`main`)**: This branch includes experimental design and live-runtime prototyping for a custom OS (SOLOS / SHARK exokernel substrate) and TRG container pipeline.
 
 **SINC** is an experimental, self-hosted systems language and compiler that compiles directly to x86-64 machine code with zero external dependencies (no libc, no LLVM, no external assembler or linker).
 

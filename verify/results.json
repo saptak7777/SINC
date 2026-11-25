@@ -1,6 +1,6 @@
 {
-  "commit": "a19a43c23e4dcae252436fd54856221056f7fcd1",
-  "commit_short": "a19a43c",
+  "commit": "ec81f7b6d46c602d35f7642e2d22127e91ea0625",
+  "commit_short": "ec81f7b",
   "commit_message": "feat(trg): TRG pipeline, container streaming, and host adapters for SINC, STAFF, and LIT\n\n- Implement pure binary TRG compiler pipeline (7 keywords, 7 passes)\n- Add genuine silicon SWAR container validation (Magic 'T', Script 1, Flags 0)\n- Upgrade STAFF and LIT to pure TRG container streaming and manifest parsing\n- Provide bin/sinc and bin/staff as Linux Host Compatibility Adapters\n- Track verified bootstrap binaries (bin/*.elf, bin/*.safe) with executable permissions (100755)\n- Pass all release gates (15/15 STAFF, 21/21 LIT, 6/6 TRG, 134/134 native, 24/24 GCC benchmarks)",
   "seed_compiler": {
     "elf_sha": "0c2ec58d6ba37cb21082ceddb3359206a4aa79f6b3ca3c915d00e3b1dc1786a4",
